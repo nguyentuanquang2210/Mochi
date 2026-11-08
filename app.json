@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Mochi - Spaced Repetition Flashcards",
+    "slug": "mochi-cards",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": true
+        }
+      ],
+      "expo-font"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "cards.mochi.mobile"
+    }
+  }
+}
