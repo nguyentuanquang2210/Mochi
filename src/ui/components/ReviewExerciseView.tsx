@@ -283,13 +283,16 @@ export function ReviewExerciseView({
       setSpokenText(transcript);
       const match = SpeechRecognitionService.isMatch(transcript, targetWord);
       setIsCorrect(match);
+      setIsAnswered(true);
 
       if (match) {
+        SpeechService.speak(targetWord);
         setTimeout(() => {
           onAnswer('good');
         }, 1200);
       } else {
-        onAnswer('again');
+        // Phát âm chuẩn để người dùng nghe đối chiếu, hiển thị feedback chờ bấm "Đã hiểu"
+        SpeechService.speak(targetWord);
       }
     } catch (e) {
       console.warn('Lỗi phân tích giọng nói:', e);
@@ -492,7 +495,7 @@ export function ReviewExerciseView({
 
   // 5. GIAO DIỆN ĐIỀN TỪ VÀO CÂU (SENTENCE CLOZE)
   if (exerciseType === 'sentence_cloze') {
-    const clozeSentence = exampleInfo ? exampleInfo.clozeSentence : `The word is ________.`;
+    const clozeSentence = exampleInfo ? exampleInfo.clozeSentence : `Từ cần điền là ________.`;
     const sentenceTranslation = exampleInfo ? exampleInfo.translation : null;
 
     return (

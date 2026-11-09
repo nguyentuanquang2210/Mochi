@@ -248,8 +248,17 @@ export function getWordFamily(
     ]
   };
 
+  // Tra cứu trực tiếp theo từ gốc
   if (knownFamilies[clean]) {
     return knownFamilies[clean];
+  }
+
+  // Tra cứu ngược: nếu từ nhập vào là dạng phái sinh (vd "denial" → tìm family "deny")
+  for (const [root, family] of Object.entries(knownFamilies)) {
+    const found = family.some(f => f.word.toLowerCase() === clean);
+    if (found) {
+      return family;
+    }
   }
 
   // Nếu không có trong danh sách Word Family: chỉ trả về thông tin từ gốc chuẩn, TUYỆT ĐỐI không sinh đuôi giả

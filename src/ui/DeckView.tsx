@@ -370,7 +370,7 @@ export function DeckView({
                 <Feather name="circle" size={15} color="#555" style={{ marginRight: 10 }} />
                 <Text style={styles.reviewDropdownLabel}>Thẻ mới</Text>
                 <View style={styles.dropdownCountBadge}>
-                  <Text style={styles.dropdownCountBadgeText}>{newCardsCount || 2}</Text>
+                  <Text style={styles.dropdownCountBadgeText}>{newCardsCount}</Text>
                 </View>
               </TouchableOpacity>
 
@@ -384,7 +384,7 @@ export function DeckView({
                 <Feather name="zap" size={15} color="#555" style={{ marginRight: 10 }} />
                 <Text style={styles.reviewDropdownLabel}>Ôn cấp tốc</Text>
                 <View style={styles.dropdownCountBadge}>
-                  <Text style={styles.dropdownCountBadgeText}>{cards.length || 3}</Text>
+                  <Text style={styles.dropdownCountBadgeText}>{cards.length}</Text>
                 </View>
               </TouchableOpacity>
             </View>
