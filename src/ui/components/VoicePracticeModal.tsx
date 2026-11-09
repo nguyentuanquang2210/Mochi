@@ -9,7 +9,6 @@ import {
   TouchableWithoutFeedback,
   View
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 import { Audio } from 'expo-av';
 import { Feather, Ionicons, MaterialCommunityIcons } from './Icons';
 import { SpeechService } from '../../services/speech';
@@ -22,86 +21,6 @@ interface VoicePracticeModalProps {
   onClose: () => void;
 }
 
-const WEBVIEW_HTML = `
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  </head>
-  <body>
-    <script>
-      var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      var recognition = null;
-      var isRecognizing = false;
-
-      function sendToApp(payload) {
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify(payload));
-        }
-      }
-
-      function initRecognition() {
-        if (!SpeechRecognition) {
-          sendToApp({ type: 'error', message: 'SpeechRecognition not supported in WebView' });
-          return;
-        }
-
-        recognition = new SpeechRecognition();
-        recognition.lang = 'en-US';
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.maxAlternatives = 3;
-
-        recognition.onstart = function() {
-          isRecognizing = true;
-          sendToApp({ type: 'start' });
-        };
-
-        recognition.onresult = function(event) {
-          var transcript = '';
-          var isFinal = false;
-          for (var i = event.resultIndex; i < event.results.length; ++i) {
-            transcript += event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-              isFinal = true;
-            }
-          }
-          sendToApp({ type: 'result', transcript: transcript, isFinal: isFinal });
-        };
-
-        recognition.onerror = function(event) {
-          isRecognizing = false;
-          sendToApp({ type: 'error', error: event.error });
-        };
-
-        recognition.onend = function() {
-          isRecognizing = false;
-          sendToApp({ type: 'end' });
-        };
-      }
-
-      window.addEventListener('message', function(event) {
-        try {
-          var data = JSON.parse(event.data);
-          if (data.action === 'start') {
-            if (!recognition) initRecognition();
-            if (recognition) {
-              try { recognition.start(); } catch(e) {}
-            }
-          } else if (data.action === 'stop') {
-            if (recognition && isRecognizing) {
-              try { recognition.stop(); } catch(e) {}
-            }
-          }
-        } catch(e) {}
-      });
-
-      initRecognition();
-    </script>
-  </body>
-</html>
-`;
-
 export function VoicePracticeModal({
   visible,
   word,
@@ -109,26 +28,27 @@ export function VoicePracticeModal({
   meaning,
   onClose
 }: VoicePracticeModalProps) {
-  const [isListening, setIsListening] = useState(false);
-  const [transcript, setTranscript] = useState('');
-  const [isFinal, setIsFinal] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'listening' | 'evaluating' | 'correct' | 'incorrect'>('idle');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'recording' | 'recorded' | 'evaluating'>('idle');
   const [recordedUri, setRecordedUri] = useState<string | null>(null);
   const [isPlayingRecording, setIsPlayingRecording] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const webViewRef = useRef<WebView>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const timerRef = useRef<any>(null);
+  const autoStopTimeoutRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   // Hiệu ứng nhịp đập khi đang thu âm
   useEffect(() => {
     let anim: Animated.CompositeAnimation | null = null;
-    if (isListening) {
+    if (isRecording) {
       anim = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.2, duration: 600, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true })
+          Animated.timing(pulseAnim, { toValue: 1.25, duration: 500, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true })
         ])
       );
       anim.start();
@@ -138,121 +58,130 @@ export function VoicePracticeModal({
     return () => {
       if (anim) anim.stop();
     };
-  }, [isListening]);
+  }, [isRecording]);
 
-  // Reset state khi mở modal
+  // Reset state khi mở/đóng modal
   useEffect(() => {
     if (visible) {
-      setTranscript('');
-      setIsFinal(false);
       setStatus('idle');
       setRecordedUri(null);
-      setIsListening(false);
+      setIsRecording(false);
+      setRecordingSeconds(0);
+      setErrorMessage(null);
     } else {
-      stopListening();
+      stopRecordingAndCleanUp();
       if (soundRef.current) {
-        soundRef.current.unloadAsync();
+        soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
       }
     }
+    return () => {
+      clearAllTimers();
+    };
   }, [visible]);
 
-  const cleanText = (str: string) => {
-    return (str || '')
-      .toLowerCase()
-      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, '')
-      .trim();
-  };
-
-  const startListening = async () => {
-    try {
-      setTranscript('');
-      setIsFinal(false);
-      setStatus('listening');
-      setIsListening(true);
-
-      // Yêu cầu quyền Micro & chuẩn bị Audio recording
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.granted) {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true
-        });
-        const { recording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
-        recordingRef.current = recording;
-      }
-
-      // Kích hoạt SpeechRecognition trong WebView
-      webViewRef.current?.postMessage(JSON.stringify({ action: 'start' }));
-    } catch (err) {
-      console.warn('Start listening error:', err);
-      setIsListening(false);
-      setStatus('idle');
+  const clearAllTimers = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (autoStopTimeoutRef.current) {
+      clearTimeout(autoStopTimeoutRef.current);
+      autoStopTimeoutRef.current = null;
     }
   };
 
-  const stopListening = async () => {
-    setIsListening(false);
-    webViewRef.current?.postMessage(JSON.stringify({ action: 'stop' }));
-
+  const stopRecordingAndCleanUp = async () => {
+    clearAllTimers();
+    setIsRecording(false);
     if (recordingRef.current) {
       try {
         await recordingRef.current.stopAndUnloadAsync();
-        const uri = recordingRef.current.getURI();
-        setRecordedUri(uri);
-        recordingRef.current = null;
-      } catch (err) {
-        console.warn('Stop recording error:', err);
-      }
+      } catch {}
+      recordingRef.current = null;
     }
   };
 
-  const evaluateTranscript = (spoken: string) => {
-    const cleanSpoken = cleanText(spoken);
-    const targetWord = cleanText(word);
-
-    if (!cleanSpoken) {
-      setStatus('idle');
-      return;
-    }
-
-    // So khớp từ vựng: nếu khớp hoàn toàn hoặc chứa từ mục tiêu
-    const spokenTokens = cleanSpoken.split(/\s+/);
-    const isMatch = cleanSpoken === targetWord || spokenTokens.includes(targetWord);
-
-    if (isMatch) {
-      setStatus('correct');
-    } else {
-      setStatus('incorrect');
-    }
-  };
-
-  const handleWebViewMessage = (event: any) => {
+  const startRecording = async () => {
     try {
-      const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'start') {
-        setIsListening(true);
-      } else if (data.type === 'result') {
-        const text = data.transcript || '';
-        setTranscript(text);
-        if (data.isFinal) {
-          setIsFinal(true);
-          stopListening();
-          evaluateTranscript(text);
-        }
-      } else if (data.type === 'end') {
-        setIsListening(false);
-        if (transcript) {
-          evaluateTranscript(transcript);
-        } else if (status === 'listening') {
-          setStatus('idle');
-        }
-      } else if (data.type === 'error') {
-        console.warn('Speech recognition error:', data.error);
-        setIsListening(false);
+      setErrorMessage(null);
+
+      // Dừng âm thanh đang phát nếu có
+      if (soundRef.current) {
+        await soundRef.current.stopAsync().catch(() => {});
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+        setIsPlayingRecording(false);
       }
-    } catch (e) {}
+
+      // Yêu cầu quyền Micro
+      const permission = await Audio.requestPermissionsAsync();
+      if (!permission.granted) {
+        setErrorMessage('Ứng dụng cần quyền sử dụng Microphone để thu âm giọng nói của bạn.');
+        return;
+      }
+
+      // Cài đặt cấu hình ghi âm tối ưu cho iOS & Android
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false
+      });
+
+      // Bắt đầu bản ghi âm chất lượng cao
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+
+      setIsRecording(true);
+      setStatus('recording');
+      setRecordingSeconds(0);
+
+      // Đếm giây thu âm
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds(sec => sec + 1);
+      }, 1000);
+
+      // Tự động dừng sau 6 giây (phù hợp với phát âm từ vựng đơn)
+      autoStopTimeoutRef.current = setTimeout(() => {
+        stopRecording();
+      }, 6000);
+
+    } catch (err: any) {
+      console.warn('Lỗi khi bắt đầu thu âm:', err);
+      setErrorMessage('Không thể khởi động bộ thu âm. Vui lòng kiểm tra quyền micro.');
+      setIsRecording(false);
+      setStatus('idle');
+      clearAllTimers();
+    }
+  };
+
+  const stopRecording = async () => {
+    clearAllTimers();
+    setIsRecording(false);
+
+    if (!recordingRef.current) return;
+
+    try {
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      setRecordedUri(uri);
+      recordingRef.current = null;
+      setStatus('recorded');
+
+      // Chuyển chế độ âm thanh về phát loa ngoài để nghe lại rõ nét
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true
+      });
+    } catch (err) {
+      console.warn('Lỗi khi dừng thu âm:', err);
+      setErrorMessage('Đã xảy ra lỗi khi lưu bản ghi âm.');
+      setStatus('idle');
+    }
   };
 
   const playNativeSample = () => {
@@ -263,23 +192,38 @@ export function VoicePracticeModal({
     if (!recordedUri) return;
     try {
       if (soundRef.current) {
-        await soundRef.current.unloadAsync();
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
       }
+
       setIsPlayingRecording(true);
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true
+      });
+
       const { sound } = await Audio.Sound.createAsync(
         { uri: recordedUri },
         { shouldPlay: true }
       );
       soundRef.current = sound;
+
       sound.setOnPlaybackStatusUpdate((st: any) => {
         if (st.didJustFinish) {
           setIsPlayingRecording(false);
         }
       });
     } catch (err) {
-      console.warn('Play recording error:', err);
+      console.warn('Lỗi phát bản thu:', err);
       setIsPlayingRecording(false);
     }
+  };
+
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
   return (
@@ -299,84 +243,87 @@ export function VoicePracticeModal({
                   <Feather name="mic" size={18} color="#2563EB" style={{ marginRight: 6 }} />
                   <Text style={styles.title}>Luyện phát âm</Text>
                 </View>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                  <Ionicons name="close" size={20} color="#6B7280" />
+                <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <Feather name="x" size={20} color="#6B7280" />
                 </TouchableOpacity>
               </View>
 
-              {/* Từ mục tiêu & IPA */}
+              {/* Thông tin từ vựng mục tiêu */}
               <View style={styles.wordBox}>
                 <Text style={styles.targetWord}>{word}</Text>
-                {ipa && <Text style={styles.targetIpa}>{ipa}</Text>}
-                {meaning && (
+                {ipa ? <Text style={styles.targetIpa}>{ipa}</Text> : null}
+                {meaning ? (
                   <Text style={styles.targetMeaning} numberOfLines={2}>
-                    {meaning}
+                    {meaning.replace(/^[0-9.]+\s*/, '')}
                   </Text>
-                )}
+                ) : null}
               </View>
 
-              {/* Khu vực kết quả nhận diện */}
+              {/* Khu vực trạng thái ghi âm */}
               <View style={styles.resultContainer}>
-                {status === 'listening' ? (
-                  <View style={styles.statusBox}>
-                    <Text style={styles.listeningHint}>
-                      {transcript ? `"${transcript}"` : 'Đang lắng nghe... hãy nói tiếng Anh'}
-                    </Text>
-                  </View>
-                ) : status === 'correct' ? (
-                  <View style={[styles.statusBox, styles.statusBoxCorrect]}>
-                    <Ionicons name="checkmark-circle" size={24} color="#10B981" />
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={styles.correctTitle}>Phát âm chuẩn xác! 🎉</Text>
-                      <Text style={styles.transcriptText}>"{transcript}"</Text>
-                    </View>
-                  </View>
-                ) : status === 'incorrect' ? (
-                  <View style={[styles.statusBox, styles.statusBoxIncorrect]}>
-                    <Ionicons name="alert-circle" size={24} color="#EF4444" />
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={styles.incorrectTitle}>Chưa khớp với từ mẫu</Text>
-                      <Text style={styles.transcriptText}>
-                        Máy nghe được: <Text style={{ fontWeight: '700' }}>"{transcript || '(chưa rõ)'}"</Text>
+                {status === 'recording' && (
+                  <View style={[styles.statusBox, styles.statusBoxRecording]}>
+                    <View style={styles.recordingDot} />
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={styles.recordingTitle}>
+                        Đang thu âm... ({formatTime(recordingSeconds)})
                       </Text>
-                      <Text style={styles.retryHint}>Hãy thử nghe phát âm mẫu và nói lại nhé!</Text>
+                      <Text style={styles.recordingSub}>
+                        Hãy phát âm từ rõ ràng, bấm nút đỏ để dừng
+                      </Text>
                     </View>
                   </View>
-                ) : (
+                )}
+
+                {status === 'recorded' && (
+                  <View style={[styles.statusBox, styles.statusBoxRecorded]}>
+                    <Ionicons name="checkmark-circle" size={26} color="#10B981" style={{ marginRight: 8 }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.recordedTitle}>Đã thu âm xong!</Text>
+                      <Text style={styles.recordedSub}>
+                        Bấm "Nghe lại" để nghe giọng bạn, hoặc "Nghe mẫu" để so sánh.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {status === 'idle' && (
                   <View style={styles.statusBox}>
-                    <Text style={styles.idleHint}>Nhấn vào biểu tượng Micro bên dưới để bắt đầu nói</Text>
+                    <Text style={styles.idleHint}>
+                      {errorMessage || 'Bấm vào nút Micro màu xanh bên dưới để bắt đầu thu âm phát âm của bạn.'}
+                    </Text>
                   </View>
                 )}
               </View>
 
               {/* Các nút hành động */}
               <View style={styles.actionsRow}>
-                {/* Nút nghe mẫu */}
+                {/* Nút nghe giọng mẫu của máy */}
                 <TouchableOpacity
                   style={styles.auxBtn}
                   onPress={playNativeSample}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="volume-high-outline" size={20} color="#374151" />
+                  <Ionicons name="volume-high-outline" size={22} color="#374151" />
                   <Text style={styles.auxBtnText}>Nghe mẫu</Text>
                 </TouchableOpacity>
 
-                {/* Nút Micro chính giữa */}
+                {/* Nút Micro chính giữa (Thu / Dừng) */}
                 <TouchableOpacity
-                  style={[styles.micBtn, isListening && styles.micBtnActive]}
-                  onPress={isListening ? stopListening : startListening}
+                  style={[styles.micBtn, isRecording && styles.micBtnActive]}
+                  onPress={isRecording ? stopRecording : startRecording}
                   activeOpacity={0.8}
                 >
                   <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                     <Feather
-                      name={isListening ? 'square' : 'mic'}
+                      name={isRecording ? 'square' : 'mic'}
                       size={28}
                       color="#FFFFFF"
                     />
                   </Animated.View>
                 </TouchableOpacity>
 
-                {/* Nút nghe lại giọng của tôi */}
+                {/* Nút nghe lại giọng người dùng vừa thu */}
                 <TouchableOpacity
                   style={[styles.auxBtn, !recordedUri && styles.auxBtnDisabled]}
                   onPress={playUserRecording}
@@ -385,26 +332,13 @@ export function VoicePracticeModal({
                 >
                   <Feather
                     name={isPlayingRecording ? 'volume-2' : 'play-circle'}
-                    size={20}
+                    size={22}
                     color={recordedUri ? '#2563EB' : '#9CA3AF'}
                   />
-                  <Text style={[styles.auxBtnText, recordedUri && { color: '#2563EB' }]}>
+                  <Text style={[styles.auxBtnText, recordedUri && { color: '#2563EB', fontWeight: '700' }]}>
                     {isPlayingRecording ? 'Đang phát...' : 'Nghe lại'}
                   </Text>
                 </TouchableOpacity>
-              </View>
-
-              {/* Hidden WebView để chạy Web Speech API native */}
-              <View style={styles.hiddenWebView}>
-                <WebView
-                  ref={webViewRef}
-                  source={{ html: WEBVIEW_HTML }}
-                  originWhitelist={['*']}
-                  javaScriptEnabled
-                  allowsInlineMediaPlayback
-                  mediaPlaybackRequiresUserAction={false}
-                  onMessage={handleWebViewMessage}
-                />
               </View>
             </View>
           </TouchableWithoutFeedback>
@@ -490,48 +424,49 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 64
   },
-  statusBoxCorrect: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
-    borderWidth: 1.5,
-    justifyContent: 'flex-start'
-  },
-  statusBoxIncorrect: {
+  statusBoxRecording: {
     backgroundColor: '#FEF2F2',
     borderColor: '#FECACA',
     borderWidth: 1.5,
     justifyContent: 'flex-start'
   },
-  listeningHint: {
-    fontSize: 15,
-    color: '#2563EB',
-    fontWeight: '600',
-    fontStyle: 'italic'
+  recordingDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#EF4444'
+  },
+  recordingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#DC2626'
+  },
+  recordingSub: {
+    fontSize: 12,
+    color: '#7F1D1D',
+    marginTop: 2
+  },
+  statusBoxRecorded: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1.5,
+    justifyContent: 'flex-start'
+  },
+  recordedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#065F46'
+  },
+  recordedSub: {
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 2
   },
   idleHint: {
     fontSize: 13,
     color: '#6B7280',
-    textAlign: 'center'
-  },
-  correctTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#065F46'
-  },
-  incorrectTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#991B1B'
-  },
-  transcriptText: {
-    fontSize: 13,
-    color: '#374151',
-    marginTop: 2
-  },
-  retryHint: {
-    fontSize: 12,
-    color: '#DC2626',
-    marginTop: 4
+    textAlign: 'center',
+    lineHeight: 18
   },
   actionsRow: {
     flexDirection: 'row',
@@ -542,13 +477,13 @@ const styles = StyleSheet.create({
   auxBtn: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 80,
-    height: 56,
-    borderRadius: 12,
+    width: 82,
+    height: 60,
+    borderRadius: 14,
     backgroundColor: '#F3F4F6'
   },
   auxBtnDisabled: {
-    opacity: 0.5
+    opacity: 0.45
   },
   auxBtnText: {
     fontSize: 11,
@@ -572,12 +507,5 @@ const styles = StyleSheet.create({
   micBtnActive: {
     backgroundColor: '#EF4444',
     shadowColor: '#EF4444'
-  },
-  hiddenWebView: {
-    width: 0,
-    height: 0,
-    opacity: 0,
-    position: 'absolute'
   }
 });
-

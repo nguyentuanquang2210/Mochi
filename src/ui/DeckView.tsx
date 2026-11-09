@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Alert,
-  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -202,7 +201,6 @@ export function DeckView({
 
   const renderGridCardItem = (card: CardSummary) => {
     const ipa = getCardIpa(card);
-    const cardImg = card.thumbnailUrl || card.imageUrl;
     return (
       <TouchableOpacity
         key={card.id}
@@ -212,21 +210,14 @@ export function DeckView({
         onLongPress={() => setSelectedCardForOptions(card)}
       >
         <View style={styles.cardTileTop}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1, marginRight: cardImg ? 8 : 0 }}>
-              <Text numberOfLines={1} style={styles.cardTitleText}>
-                {card.front}
-              </Text>
-              {ipa ? (
-                <Text numberOfLines={1} style={styles.cardIpaText}>
-                  {ipa}
-                </Text>
-              ) : null}
-            </View>
-            {cardImg ? (
-              <Image source={{ uri: cardImg }} style={styles.cardGridThumb} resizeMode="cover" />
-            ) : null}
-          </View>
+          <Text numberOfLines={1} style={styles.cardTitleText}>
+            {card.front}
+          </Text>
+          {ipa ? (
+            <Text numberOfLines={1} style={styles.cardIpaText}>
+              {ipa}
+            </Text>
+          ) : null}
           {card.isPinned && (
             <MaterialCommunityIcons
               name="pin"

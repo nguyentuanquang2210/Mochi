@@ -540,11 +540,13 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
             {/* Front content */}
             <View style={styles.sideContent}>
               {Boolean(currentCard.thumbnailUrl || currentCard.imageUrl) && (
-                <Image
-                  source={{ uri: (currentCard.thumbnailUrl || currentCard.imageUrl) as string }}
-                  style={styles.cardFrontCover}
-                  resizeMode="cover"
-                />
+                <View style={styles.cardFrontCoverWrapper}>
+                  <Image
+                    source={{ uri: (currentCard.thumbnailUrl || currentCard.imageUrl) as string }}
+                    style={styles.cardFrontCover}
+                    resizeMode="contain"
+                  />
+                </View>
               )}
               <MarkdownCard content={sides[0] || currentCard.front} isRevealed={revealedSideIndex > 0} isTitle />
               {liveCardIpa ? (
@@ -728,12 +730,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
+  cardFrontCoverWrapper: {
+    alignSelf: 'center',
+    width: 140,
+    height: 95,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    overflow: 'hidden'
+  },
   cardFrontCover: {
     width: '100%',
-    height: 140,
-    borderRadius: 12,
-    marginBottom: 12,
-    backgroundColor: '#F3F4F6'
+    height: '100%'
   },
   container: {
     flex: 1,

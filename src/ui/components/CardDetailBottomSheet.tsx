@@ -115,7 +115,9 @@ export function CardDetailBottomSheet({
           {/* Card Content with all sides separated by dashed lines */}
           <ScrollView style={styles.bodyScroll} showsVerticalScrollIndicator={false}>
             {cardImg ? (
-              <Image source={{ uri: cardImg as string }} style={styles.sheetCoverImage} resizeMode="cover" />
+              <View style={styles.sheetCoverWrapper}>
+                <Image source={{ uri: cardImg as string }} style={styles.sheetCoverImage} resizeMode="contain" />
+              </View>
             ) : null}
             {sides.map((sideText, idx) => (
               <View key={idx}>
@@ -245,12 +247,22 @@ const styles = StyleSheet.create({
   bodyScroll: {
     paddingVertical: 16
   },
+  sheetCoverWrapper: {
+    alignSelf: 'center',
+    width: 140,
+    height: 95,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    overflow: 'hidden'
+  },
   sheetCoverImage: {
     width: '100%',
-    height: 140,
-    borderRadius: 12,
-    marginBottom: 12,
-    backgroundColor: '#F3F4F6'
+    height: '100%'
   },
   sheetMicBtn: {
     padding: 6,
