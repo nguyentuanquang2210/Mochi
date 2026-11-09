@@ -11,6 +11,7 @@ import { Feather, Ionicons } from './components/Icons';
 import { Header } from './components/Header';
 import type { CardSummary, Deck } from '../domain/types';
 import { CardOptionsMenu } from './components/CardOptionsMenu';
+import { CardRepository } from '../data/repositories';
 
 interface SearchViewProps {
   decks: Deck[];
@@ -138,7 +139,18 @@ export function SearchView({
         onClose={() => setSelectedCardForOptions(null)}
         onCopyId={() => {}}
         onCopyMarkdown={() => {}}
-        onAddToReviews={() => {}}
+        onAddToReviews={async () => {
+          if (selectedCardForOptions) {
+            await CardRepository.addToReviewQueue(selectedCardForOptions.id);
+            onRefresh();
+          }
+        }}
+        onResetHistory={async () => {
+          if (selectedCardForOptions) {
+            await CardRepository.resetCardReviewHistory(selectedCardForOptions.id);
+            onRefresh();
+          }
+        }}
         onDuplicate={() => { onRefresh(); }}
         onToggleArchive={() => { onRefresh(); }}
         onToggleReviewReverse={() => { onRefresh(); }}

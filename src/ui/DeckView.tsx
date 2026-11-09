@@ -120,16 +120,17 @@ export function DeckView({
 
   const handleResetHistory = async () => {
     Alert.alert(
-      'Reset Review History',
-      `Reset all cards in "${deck.name}" to new?`,
+      'Đặt lại lịch ôn tập',
+      `Bạn có chắc muốn đặt lại toàn bộ thẻ trong "${deck.name}" về trạng thái mới để học lại từ đầu không?`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Hủy', style: 'cancel' },
         {
-          text: 'Reset',
+          text: 'Đặt lại & Học ngay',
           style: 'destructive',
           onPress: async () => {
             await CardRepository.resetDeckReviewHistory(deck.id);
-            onRefresh();
+            await onRefresh();
+            onStartReview('due');
           }
         }
       ]
@@ -650,7 +651,21 @@ export function DeckView({
           Alert.alert('Markdown Copied', selectedCardForOptions?.content);
         }}
         onAddToReviews={async () => {
-          Alert.alert('Reviews', 'Card added to review queue.');
+          if (selectedCardForOptions) {
+            await CardRepository.addToReviewQueue(selectedCardForOptions.id);
+            onRefresh();
+            Alert.alert('Hàng đợi ôn tập', `Đã thêm từ "${selectedCardForOptions.front}" vào hàng đợi ôn tập.`);
+          }
+        }}
+        onResetHistory={async () => {
+          if (selectedCardForOptions) {
+            await CardRepository.resetCardReviewHistory(selectedCardForOptions.id);
+            await onRefresh();
+            Alert.alert(
+              'Đặt lại lịch ôn tập',
+              `Đã đặt lại lịch cho từ "${selectedCardForOptions.front}". Bạn có thể vào tab Học để ôn lại ngay.`
+            );
+          }
         }}
         onDuplicate={() => {
           if (selectedCardForOptions) handleDuplicate(selectedCardForOptions);

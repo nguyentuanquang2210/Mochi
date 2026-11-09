@@ -141,7 +141,9 @@ export function CardDetailBottomSheet({
                         <Feather name="mic" size={16} color="#2563EB" />
                       </TouchableOpacity>
                     )}
-                    <SpeakerButton text={sideText} size={17} style={styles.speakerBtn} />
+                    {idx === 0 && (
+                      <SpeakerButton text={sideText} size={17} style={styles.speakerBtn} />
+                    )}
                   </View>
                 </View>
               </View>

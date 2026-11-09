@@ -218,7 +218,7 @@ export function CardEditor({
                   <Text style={styles.sideBadge}>
                     {index === 0 ? 'MẶT 1 (MẶT TRƯỚC)' : `MẶT ${index + 1} (MẶT ẨN)`}
                   </Text>
-                  <SpeakerButton text={side} size={15} />
+                  {index === 0 && <SpeakerButton text={side} size={15} />}
                 </View>
                 <Text style={styles.sideText}>{side}</Text>
               </View>

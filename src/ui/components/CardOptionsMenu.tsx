@@ -18,6 +18,7 @@ interface CardOptionsMenuProps {
   onCopyId: () => void;
   onCopyMarkdown: () => void;
   onAddToReviews: () => void;
+  onResetHistory?: () => void;
   onDuplicate: () => void;
   onToggleArchive: () => void;
   onToggleReviewReverse: () => void;
@@ -34,6 +35,7 @@ export function CardOptionsMenu({
   onCopyId,
   onCopyMarkdown,
   onAddToReviews,
+  onResetHistory,
   onDuplicate,
   onToggleArchive,
   onToggleReviewReverse,
@@ -85,6 +87,20 @@ export function CardOptionsMenu({
                 <Feather name="calendar" size={18} color="#555555" style={styles.itemIcon} />
                 <Text style={styles.itemText}>Thêm vào hàng đợi</Text>
               </TouchableOpacity>
+
+              {/* Reset review history for this card */}
+              {onResetHistory && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    onResetHistory();
+                    onClose();
+                  }}
+                >
+                  <MaterialCommunityIcons name="history" size={18} color="#555555" style={styles.itemIcon} />
+                  <Text style={styles.itemText}>Đặt lại lịch ôn tập thẻ</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Duplicate */}
               <TouchableOpacity

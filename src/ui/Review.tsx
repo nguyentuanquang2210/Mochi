@@ -760,8 +760,13 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
         onCopyMarkdown={() => {
           Alert.alert('Markdown', currentCard.content);
         }}
-        onAddToReviews={() => {
-          Alert.alert('Reviews', 'Card kept in review queue.');
+        onAddToReviews={async () => {
+          await CardRepository.addToReviewQueue(currentCard.id);
+          Alert.alert('Hàng đợi', 'Thẻ đã được ưu tiên trong hàng đợi ôn tập.');
+        }}
+        onResetHistory={async () => {
+          await CardRepository.resetCardReviewHistory(currentCard.id);
+          Alert.alert('Đặt lại lịch ôn tập', `Đã đặt lại lịch cho từ "${currentCard.front}".`);
         }}
         onDuplicate={async () => {
           await CardRepository.duplicate(currentCard.id);

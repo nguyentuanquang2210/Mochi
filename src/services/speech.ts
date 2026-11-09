@@ -51,18 +51,18 @@ class SpeechServiceImpl {
   }
 
   /**
-   * Cấu hình AudioSession cho iOS để phát âm thanh ngay cả khi gạt nút im lặng (Silent Mode).
-   * QUAN TRỌNG: Chỉ cấu hình một lần duy nhất lúc khởi động, không gọi lại lặp đi lặp lại
-   * vì việc gọi lại sẽ gây gián đoạn Audio Subsystem làm khựng/giật âm thanh ("khực").
-   */
+    * Cấu hình AudioSession cho iOS để phát âm thanh ngay cả khi gạt nút im lặng (Silent Mode).
+    * QUAN TRỌNG: Chỉ cấu hình một lần duy nhất lúc khởi động, không gọi lại lặp đi lặp lại
+    * vì việc gọi lại sẽ gây gián đoạn Audio Subsystem làm khựng/giật âm thanh ("khực").
+    */
   async configureAudioSession() {
     if (this.audioModeConfigured) return;
     try {
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
-        allowsRecordingIOS: false,
+        allowsRecordingIOS: true,
         staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+        shouldDuckAndroid: false,
         playThroughEarpieceAndroid: false
       });
       this.audioModeConfigured = true;
@@ -72,44 +72,40 @@ class SpeechServiceImpl {
   }
 
   /**
-   * Giữ phần cứng Audio DAC luôn "ấm" (Warm / Active) trong suốt quá trình ôn tập thẻ.
-   * Ngăn chặn việc iOS tự động tắt DAC sau 3-5 giây im lặng, loại bỏ 100% hiện tượng
-   * giật/khựng âm thanh khi người dùng ấn phát âm lần đầu hoặc sau vài giây dừng lại.
+   * Giữ cấu hình Audio luôn sẵn sàng trong suốt quá trình ôn tập thẻ.
    */
   async startKeepAlive() {
     try {
       await this.configureAudioSession();
-      if (this.keepAliveSound) return;
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA' },
-        { shouldPlay: true, isLooping: true, volume: 0.01 }
-      );
-      this.keepAliveSound = sound;
     } catch (e) {
       // Gracefully ignore
     }
   }
 
   /**
-   * Dừng giải phóng bộ đệm giữ DAC khi rời khỏi màn hình ôn tập
+   * Dọn dẹp khi rời khỏi màn hình ôn tập
    */
   async stopKeepAlive() {
-    try {
-      if (this.keepAliveSound) {
-        await this.keepAliveSound.stopAsync();
-        await this.keepAliveSound.unloadAsync();
-        this.keepAliveSound = null;
-      }
-    } catch (e) {}
+    // Giữ nguyên AudioSession để không gây gián đoạn DAC
   }
 
   /**
    * Làm nóng bộ tổng hợp giọng nói lúc khởi động app
+   * Prime TTS engine ngay lúc app khởi động để phát âm từ đầu tiên mượt mà, không bị khựng giật
    */
   async warmup() {
     try {
       await this.configureAudioSession();
       await this.getVoicesAsync();
+      try {
+        Speech.speak(' ', {
+          language: this.currentSettings.accent,
+          rate: 2.0,
+          volume: 0,
+          onDone: () => {},
+          onError: () => {}
+        });
+      } catch {}
     } catch {}
   }
 
@@ -252,10 +248,11 @@ class SpeechServiceImpl {
         await this.configureAudioSession();
       }
 
-      // 2. Dừng từ đang đọc trước đó ngay lập tức (không chờ async delay)
+      // 2. Dừng từ đang đọc trước đó nếu đang phát âm
       if (this.isSpeaking) {
         try {
           Speech.stop();
+          await new Promise(r => setTimeout(r, 35));
         } catch {}
       }
 

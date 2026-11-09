@@ -329,7 +329,7 @@ export const CardRepository = {
     return rows.map(asCardSummary);
   },
 
-  async getDueCards(deckId?: string, newCardsLimit = 20): Promise<{ card: CardSummary; state: FsrsState }[]> {
+  async getDueCards(deckId?: string, newCardsLimit?: number): Promise<{ card: CardSummary; state: FsrsState }[]> {
     const db = await database();
     const filters = ['c.trashed_at IS NULL', 'c.archived_at IS NULL'];
     const args: any[] = [];
@@ -338,6 +338,8 @@ export const CardRepository = {
       filters.push('c.deck_id = ?');
       args.push(deckId);
     }
+
+    const effectiveNewLimit = newCardsLimit ?? (deckId ? 200 : 20);
 
     // 1. Lấy toàn bộ thẻ đến hạn ôn tập hôm nay (bắt buộc phải ôn để không quên)
     const dueSql = `
@@ -352,7 +354,7 @@ export const CardRepository = {
     `;
     const dueRows = await db.getAllAsync<any>(dueSql, ...args, Date.now() + 60000);
 
-    // 2. Lấy thẻ mới (tối đa newCardsLimit để không làm ngợp người học khi kho có nhiều thẻ)
+    // 2. Lấy thẻ mới (khi người dùng chọn bộ thẻ cụ thể hoặc đặt lại lịch, lấy toàn bộ thẻ để ôn luyện đầy đủ)
     const newSql = `
       SELECT c.*, f.*, GROUP_CONCAT(t.name, '|') AS tag_names
       FROM cards c
@@ -364,7 +366,7 @@ export const CardRepository = {
       ORDER BY c.created_at ASC
       LIMIT ?
     `;
-    const newRows = await db.getAllAsync<any>(newSql, ...args, newCardsLimit);
+    const newRows = await db.getAllAsync<any>(newSql, ...args, effectiveNewLimit);
 
     const combined = [...dueRows, ...newRows];
     return combined.map(r => ({
@@ -457,7 +459,48 @@ export const CardRepository = {
     });
   },
 
-  async countDue(deckId?: string, newCardsLimit = 20): Promise<number> {
+  async resetCardReviewHistory(cardId: string): Promise<void> {
+    const db = await database();
+    const freshState = await newFsrsState();
+    await withTransaction(async tx => {
+      await tx.runAsync(
+        `UPDATE fsrs_states SET
+           state = 'new',
+           reps = 0,
+           lapses = 0,
+           scheduled_days = 0,
+           elapsed_days = 0,
+           stability = 0,
+           difficulty = 0,
+           due_at = ?,
+           last_review_at = NULL,
+           raw_json = ?
+         WHERE card_id = ?`,
+        Date.now(),
+        freshState.rawJson,
+        cardId
+      );
+      await tx.runAsync(
+        `DELETE FROM review_logs WHERE card_id = ?`,
+        cardId
+      );
+    });
+  },
+
+  async addToReviewQueue(cardId: string): Promise<void> {
+    const db = await database();
+    await withTransaction(async tx => {
+      await tx.runAsync(
+        `UPDATE fsrs_states SET
+           due_at = ?
+         WHERE card_id = ?`,
+        Date.now() - 1000,
+        cardId
+      );
+    });
+  },
+
+  async countDue(deckId?: string, newCardsLimit?: number): Promise<number> {
     const db = await database();
     const filters = ['c.trashed_at IS NULL', 'c.archived_at IS NULL'];
     const args: any[] = [];
@@ -466,19 +509,21 @@ export const CardRepository = {
       args.push(deckId);
     }
 
+    const effectiveNewLimit = newCardsLimit ?? (deckId ? 200 : 20);
+
     // Đếm thẻ đến hạn
     const dueRow = await db.getFirstAsync<{ count: number }>(
       `SELECT COUNT(*) as count FROM cards c JOIN fsrs_states f ON f.card_id = c.id WHERE ${filters.join(' AND ')} AND f.state != 'new' AND f.due_at <= ?`,
-      ...args, Date.now()
+      ...args, Date.now() + 60000
     );
     const dueCount = dueRow?.count ?? 0;
 
-    // Đếm thẻ mới (giới hạn tối đa newCardsLimit trong mục tiêu ngày)
+    // Đếm thẻ mới
     const newRow = await db.getFirstAsync<{ count: number }>(
       `SELECT COUNT(*) as count FROM cards c JOIN fsrs_states f ON f.card_id = c.id WHERE ${filters.join(' AND ')} AND (f.state IS NULL OR f.state = 'new')`,
       ...args
     );
-    const newCount = Math.min(newRow?.count ?? 0, newCardsLimit);
+    const newCount = Math.min(newRow?.count ?? 0, effectiveNewLimit);
 
     return dueCount + newCount;
   },

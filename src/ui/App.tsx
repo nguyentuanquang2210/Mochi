@@ -32,6 +32,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<'deck' | 'dashboard' | 'search' | 'create' | 'edit' | 'review' | 'trash' | 'settings' | 'import'>('deck');
   const [reviewMode, setReviewMode] = useState<'due' | 'new' | 'cram'>('due');
+  const [reviewVersion, setReviewVersion] = useState(0);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [activeDeckId, setActiveDeckId] = useState<string | null>(null);
   const [cards, setCards] = useState<CardSummary[]>([]);
@@ -100,6 +101,7 @@ export default function App() {
 
     const all = await CardRepository.search('');
     setAllCards(all);
+    setReviewVersion(v => v + 1);
   };
 
   const handleSelectDeck = async (deckId: string) => {
@@ -120,6 +122,8 @@ export default function App() {
     } else if (tab === 'search') {
       setCurrentView('search');
     } else if (tab === 'inbox') {
+      setReviewMode('due');
+      setReviewVersion(v => v + 1);
       setCurrentView('review');
     } else if (tab === 'create') {
       // Khi ấn dấu cộng ở thanh dashboard dưới, mở Action Sheet tùy chọn như ảnh mẫu
@@ -182,6 +186,7 @@ export default function App() {
     if (currentView === 'review') {
       return (
         <Review
+          key={`${activeDeck?.id || 'all'}-${reviewMode}-${reviewVersion}`}
           deck={activeDeck}
           reviewMode={reviewMode}
           onDone={() => {
