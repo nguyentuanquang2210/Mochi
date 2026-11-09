@@ -3,6 +3,8 @@ import {
   Alert,
   Animated,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   LayoutAnimation,
   Modal,
   PanResponder,
@@ -82,6 +84,18 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const [showVoicePractice, setShowVoicePractice] = useState(false);
   const [selectedPracticeMode, setSelectedPracticeMode] = useState<PracticeMode>('mixed');
   const [showModeModal, setShowModeModal] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+    const hideSub = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Animation values for swipe physics and hidden side drop
   const pan = useRef(new Animated.ValueXY()).current;
@@ -474,57 +488,82 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     );
   }
 
+  // Xác định xem exercise hiện tại có cần bàn phím không (để ẩn header/controls khi mở keyboard)
+  const exerciseNeedsKeyboard = effectiveExerciseType !== 'flashcard' && effectiveExerciseType !== 'speaking';
+  const shouldCompactForKeyboard = isKeyboardVisible && exerciseNeedsKeyboard;
+
   return (
     <View style={styles.container}>
-      {/* Top Header matching Screenshot 4 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onOpenDrawer} style={styles.iconBtn}>
-          <Feather name="menu" size={24} color="#333333" />
-        </TouchableOpacity>
+      {/* Top Header - Thu gọn khi bàn phím mở trên các exercise có input */}
+      {!shouldCompactForKeyboard && (
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onOpenDrawer} style={styles.iconBtn}>
+            <Feather name="menu" size={24} color="#333333" />
+          </TouchableOpacity>
 
-        <View style={styles.headerCenter}>
-          <Ionicons name="file-tray-full-outline" size={17} color="#555555" style={{ marginRight: 6 }} />
-          <Text style={styles.headerProgressText}>
+          <View style={styles.headerCenter}>
+            <Ionicons name="file-tray-full-outline" size={17} color="#555555" style={{ marginRight: 6 }} />
+            <Text style={styles.headerProgressText}>
+              {currentIndex + 1} / {queue.length}
+            </Text>
+          </View>
+
+          <TouchableOpacity onPress={() => setShowCardMenu(true)} style={styles.iconBtn}>
+            <Feather name="more-horizontal" size={24} color="#555555" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Mini header khi bàn phím mở - chỉ hiện tiến trình */}
+      {shouldCompactForKeyboard && (
+        <View style={styles.headerCompact}>
+          <Text style={styles.headerCompactText}>
             {currentIndex + 1} / {queue.length}
           </Text>
+          <View style={[styles.progressTrack, { flex: 1, marginLeft: 10, marginRight: 10 }]}>
+            <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
+          </View>
+          <TouchableOpacity onPress={() => setShowCardMenu(true)} style={styles.iconBtn}>
+            <Feather name="more-horizontal" size={20} color="#555555" />
+          </TouchableOpacity>
         </View>
+      )}
 
-        <TouchableOpacity onPress={() => setShowCardMenu(true)} style={styles.iconBtn}>
-          <Feather name="more-horizontal" size={24} color="#555555" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Progress line */}
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
-      </View>
-
-      {/* Sub-header: Deck indicator & Practice Mode Pill */}
-      <View style={styles.subHeaderRow}>
-        <View style={styles.deckIndicator}>
-          <Ionicons name="folder-sharp" size={14} color="#666666" style={{ marginRight: 5 }} />
-          <Text style={styles.deckIndicatorText}>{deck?.name || 'Inbox'}</Text>
+      {/* Progress line - ẩn khi keyboard mở (đã tích hợp vào mini header) */}
+      {!shouldCompactForKeyboard && (
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
         </View>
+      )}
 
-        <TouchableOpacity
-          style={styles.practiceModePill}
-          onPress={() => setShowModeModal(true)}
-          activeOpacity={0.7}
-        >
-          <Feather
-            name={PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.icon as any || 'shuffle'}
-            size={12}
-            color="#2563EB"
-            style={{ marginRight: 5 }}
-          />
-          <Text style={styles.practiceModePillText}>
-            {PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.label || 'Ôn tập'}
-          </Text>
-          <Feather name="chevron-down" size={12} color="#64748B" style={{ marginLeft: 3 }} />
-        </TouchableOpacity>
-      </View>
+      {/* Sub-header: Deck indicator & Practice Mode Pill - ẩn khi keyboard mở */}
+      {!shouldCompactForKeyboard && (
+        <View style={styles.subHeaderRow}>
+          <View style={styles.deckIndicator}>
+            <Ionicons name="folder-sharp" size={14} color="#666666" style={{ marginRight: 5 }} />
+            <Text style={styles.deckIndicatorText}>{deck?.name || 'Inbox'}</Text>
+          </View>
 
-      <View style={styles.cardArea}>
+          <TouchableOpacity
+            style={styles.practiceModePill}
+            onPress={() => setShowModeModal(true)}
+            activeOpacity={0.7}
+          >
+            <Feather
+              name={PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.icon as any || 'shuffle'}
+              size={12}
+              color="#2563EB"
+              style={{ marginRight: 5 }}
+            />
+            <Text style={styles.practiceModePillText}>
+              {PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.label || 'Ôn tập'}
+            </Text>
+            <Feather name="chevron-down" size={12} color="#64748B" style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <View style={[styles.cardArea, shouldCompactForKeyboard && styles.cardAreaCompact]}>
         {effectiveExerciseType === 'flashcard' ? (
           <ScrollView
             style={styles.flashcardOuterScroll}
@@ -662,26 +701,40 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
             </TouchableOpacity>
           </ScrollView>
         ) : (
-          <ScrollView
-            style={styles.exerciseCardOuter}
-            contentContainerStyle={styles.exerciseCardContent}
-            showsVerticalScrollIndicator={false}
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={shouldCompactForKeyboard ? 0 : 60}
           >
-            <View style={styles.exerciseCardBox}>
-              <ReviewExerciseView
-                key={`${currentCard.id}-${effectiveExerciseType}`}
-                card={currentCard}
-                exerciseType={effectiveExerciseType}
-                ipa={liveCardIpa}
-                onAnswer={(rating) => handleRate(rating)}
-                onNext={handleSkip}
-              />
-            </View>
-          </ScrollView>
+            <ScrollView
+              style={styles.exerciseCardOuter}
+              contentContainerStyle={[
+                styles.exerciseCardContent,
+                shouldCompactForKeyboard && { paddingBottom: 8 }
+              ]}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={[
+                styles.exerciseCardBox,
+                shouldCompactForKeyboard && { padding: 10 }
+              ]}>
+                <ReviewExerciseView
+                  key={`${currentCard.id}-${effectiveExerciseType}`}
+                  card={currentCard}
+                  exerciseType={effectiveExerciseType}
+                  ipa={liveCardIpa}
+                  onAnswer={(rating) => handleRate(rating)}
+                  onNext={handleSkip}
+                />
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         )}
       </View>
 
-      {/* Review bottom controls matching Screenshot 4 & dynamically highlights on swipe */}
+      {/* Review bottom controls - ẩn khi bàn phím mở để tiết kiệm diện tích */}
+      {!shouldCompactForKeyboard && (
       <View style={styles.reviewControls}>
         {/* Previous / Undo */}
         <TouchableOpacity
@@ -748,6 +801,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
           <Feather name="more-horizontal" size={22} color="#555555" />
         </TouchableOpacity>
       </View>
+      )}
 
       {/* Card Options Menu (Screenshot 5) */}
       <CardOptionsMenu
@@ -1046,6 +1100,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF'
   },
+  headerCompact: {
+    height: 32,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF'
+  },
+  headerCompactText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#555555'
+  },
   iconBtn: {
     padding: 6
   },
@@ -1081,6 +1147,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 24
+  },
+  cardAreaCompact: {
+    paddingHorizontal: 10,
+    paddingTop: 4,
+    paddingBottom: 4
   },
   flashcardOuterScroll: {
     flex: 1,

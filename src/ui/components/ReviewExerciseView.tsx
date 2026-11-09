@@ -305,11 +305,6 @@ export function ReviewExerciseView({
     const isMemoryMode = exerciseType === 'memory_write';
     return (
       <View style={styles.container}>
-        {/* Tiêu đề dạng bài */}
-        <Text style={styles.topLabel}>
-          {isMemoryMode ? 'Viết lại bằng trí nhớ' : 'Điền từ'}
-        </Text>
-
         {/* Nghĩa tiếng Việt ở giữa to rõ */}
         <Text style={styles.meaningPrompt}>
           {cleanMeaning}
@@ -388,19 +383,15 @@ export function ReviewExerciseView({
   if (exerciseType === 'listening') {
     return (
       <View style={styles.container}>
-        <Text style={styles.topLabel}>Nghe & Nhận diện từ</Text>
-        <Text style={styles.subInstruction}>Nghe âm thanh và viết lại từ bạn nghe được:</Text>
-
-        {/* Nút loa to ở giữa để nghe phát âm */}
+        {/* Nút loa gọn ở giữa để nghe phát âm */}
         <View style={styles.bigSpeakerContainer}>
           <TouchableOpacity
             style={styles.bigSpeakerBtn}
             onPress={() => SpeechService.speak(targetWord)}
             activeOpacity={0.8}
           >
-            <Ionicons name="volume-high" size={42} color="#2563EB" />
+            <Ionicons name="volume-high" size={32} color="#2563EB" />
           </TouchableOpacity>
-          <Text style={styles.bigSpeakerHint}>Chạm vào loa để nghe lại</Text>
         </View>
 
         {/* Ô điền từ theo gạch chân */}
@@ -427,9 +418,6 @@ export function ReviewExerciseView({
   if (exerciseType === 'speaking') {
     return (
       <View style={styles.container}>
-        <Text style={styles.topLabel}>Luyện phát âm</Text>
-        <Text style={styles.subInstruction}>Nhìn từ và tự đọc to trước khi nghe máy phát âm:</Text>
-
         <View style={styles.wordDisplayBox}>
           <Text style={styles.speakingWord}>{targetWord}</Text>
           {ipa ? <Text style={styles.speakingIpa}>{ipa}</Text> : null}
@@ -500,9 +488,6 @@ export function ReviewExerciseView({
 
     return (
       <View style={styles.container}>
-        <Text style={styles.topLabel}>Điền từ vào câu</Text>
-        <Text style={styles.subInstruction}>Đọc câu ngữ cảnh và điền từ thích hợp vào chỗ trống:</Text>
-
         {/* Khối câu ví dụ khuyết từ */}
         <View style={styles.sentenceBox}>
           <Text style={styles.clozeSentenceText}>
@@ -517,7 +502,7 @@ export function ReviewExerciseView({
 
         {/* Nghĩa của từ cần điền ngay bên dưới câu */}
         <View style={styles.sentenceHintMeaningBadge}>
-          <Text style={styles.sentenceHintMeaningLabel}>Nghĩa của từ:</Text>
+          <Text style={styles.sentenceHintMeaningLabel}>Nghĩa:</Text>
           <Text style={styles.sentenceHintMeaningVal}>{cleanMeaning}</Text>
         </View>
 
@@ -546,13 +531,6 @@ export function ReviewExerciseView({
 
     return (
       <View style={styles.container}>
-        <Text style={styles.topLabel}>Họ từ (Word Form - TOEIC)</Text>
-        <Text style={styles.subInstruction}>
-          {isDerived
-            ? `Hãy viết dạng ${testItem.pos.toUpperCase()} của từ "${targetWord}":`
-            : `Hãy viết từ vựng có nghĩa sau:`}
-        </Text>
-
         {/* Khung hiển thị câu hỏi từ loại mà KHÔNG làm lộ từ cần viết */}
         <View style={styles.wordFamilyPromptCard}>
           <View style={styles.posBadgeHighlight}>
@@ -611,55 +589,41 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16
-  },
-  topLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 8,
-    letterSpacing: 0.3
-  },
-  subInstruction: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    marginBottom: 16
+    paddingVertical: 4,
+    paddingHorizontal: 4
   },
   meaningPrompt: {
     fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
     textAlign: 'center',
-    lineHeight: 25,
-    marginBottom: 6,
-    paddingHorizontal: 8
+    lineHeight: 24,
+    marginBottom: 4,
+    paddingHorizontal: 4
   },
   meaningsDropdownWrapper: {
     alignItems: 'center',
-    marginBottom: 10
+    marginBottom: 6
   },
   meaningsDropdownBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 12,
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
     borderColor: '#DBEAFE'
   },
   meaningsDropdownBtnText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#2563EB'
   },
   meaningsDropdownList: {
-    marginTop: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     backgroundColor: '#F8FAFC',
     borderRadius: 8,
     borderWidth: 1,
@@ -672,25 +636,25 @@ const styles = StyleSheet.create({
     marginVertical: 2
   },
   meaningDropdownBullet: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748B',
     marginRight: 6
   },
   meaningDropdownText: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: '#334155',
     fontWeight: '500'
   },
   imageThumbWrapper: {
-    width: 120,
-    height: 80,
-    borderRadius: 10,
+    width: 90,
+    height: 60,
+    borderRadius: 8,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
     borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 6,
     overflow: 'hidden'
   },
   imageThumb: {
@@ -699,94 +663,94 @@ const styles = StyleSheet.create({
   },
   inputArea: {
     width: '100%',
-    marginVertical: 12
+    marginVertical: 6
   },
   audioHintRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    marginTop: 6,
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16
   },
   audioHintText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: '#475569',
     marginLeft: 6,
     fontWeight: '500'
   },
   memoryCardBox: {
-    paddingVertical: 20,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
     backgroundColor: '#EFF6FF',
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 1.5,
     borderColor: '#BFDBFE',
     alignItems: 'center',
-    marginVertical: 16,
-    minWidth: 220
+    marginVertical: 8,
+    minWidth: 200
   },
   memoryWordText: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '700',
     color: '#1D4ED8'
   },
   ipaText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#3B82F6',
-    marginTop: 4
+    marginTop: 3
   },
   countdownHint: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: '#60A5FA',
-    marginTop: 8,
+    marginTop: 4,
     fontStyle: 'italic'
   },
   bigSpeakerContainer: {
     alignItems: 'center',
-    marginVertical: 18
+    marginVertical: 8
   },
   bigSpeakerBtn: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     backgroundColor: '#EFF6FF',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: '#BFDBFE',
     shadowColor: '#2563EB',
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3
   },
   bigSpeakerHint: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     color: '#64748B',
-    marginTop: 8,
+    marginTop: 4,
     fontWeight: '500'
   },
   listeningMeaningHint: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: '#64748B',
     fontStyle: 'italic',
-    marginTop: 10,
+    marginTop: 6,
     textAlign: 'center'
   },
   wordDisplayBox: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
     width: '100%'
   },
   speakingWord: {
-    fontSize: 26,
+    fontSize: 23,
     fontWeight: '700',
     color: '#0F172A'
   },
@@ -874,25 +838,26 @@ const styles = StyleSheet.create({
   },
   sentenceBox: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 16,
-    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 6,
     width: '100%'
   },
   clozeSentenceText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
     color: '#0F172A',
-    lineHeight: 25,
+    lineHeight: 23,
     textAlign: 'center'
   },
   sentenceTranslationText: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     color: '#64748B',
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 4,
     fontStyle: 'italic'
   },
   sentenceHintMeaning: {
@@ -1012,18 +977,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 6,
     gap: 6
   },
   sentenceHintMeaningLabel: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#475569'
   },
   sentenceHintMeaningVal: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
     color: '#1E293B'
   },
@@ -1031,18 +996,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderColor: '#E2E8F0',
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 12,
+    padding: 10,
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 8,
     width: '100%'
   },
   posBadgeHighlight: {
     backgroundColor: '#2563EB',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 6,
-    marginBottom: 8
+    marginBottom: 6
   },
   posBadgeHighlightText: {
     color: '#FFFFFF',
