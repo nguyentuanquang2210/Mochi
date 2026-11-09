@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  Image,
   LayoutAnimation,
   PanResponder,
   Platform,
@@ -16,6 +17,7 @@ import { Feather, Ionicons } from './components/Icons';
 import { CardOptionsMenu } from './components/CardOptionsMenu';
 import { MarkdownCard } from './components/MarkdownCard';
 import { SpeakerButton, lastSpeakerPressTimestamp } from './components/SpeakerButton';
+import { VoicePracticeModal } from './components/VoicePracticeModal';
 import { SpeechService } from '../services/speech';
 import { TOEIC_MAP } from '../data/toeicWordlist';
 import { DictionaryService } from '../services/dictionary';
@@ -51,6 +53,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const [revealedSideIndex, setRevealedSideIndex] = useState(0); // 0 = only front side, > 0 = revealed hidden sides
   const [loading, setLoading] = useState(true);
   const [showCardMenu, setShowCardMenu] = useState(false);
+  const [showVoicePractice, setShowVoicePractice] = useState(false);
 
   // Animation values for swipe physics and hidden side drop
   const pan = useRef(new Animated.ValueXY()).current;
@@ -510,12 +513,23 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
               </Text>
             </View>
 
-            <SpeakerButton
-              text={sides[0] || currentCard.front}
-              size={19}
-              color="#4B5563"
-              activeColor="#2563EB"
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={styles.micPracticeBtn}
+                onPress={() => setShowVoicePractice(true)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Feather name="mic" size={17} color="#2563EB" />
+              </TouchableOpacity>
+
+              <SpeakerButton
+                text={sides[0] || currentCard.front}
+                size={19}
+                color="#4B5563"
+                activeColor="#2563EB"
+              />
+            </View>
           </View>
 
           <TouchableOpacity
@@ -525,6 +539,13 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
           >
             {/* Front content */}
             <View style={styles.sideContent}>
+              {Boolean(currentCard.thumbnailUrl || currentCard.imageUrl) && (
+                <Image
+                  source={{ uri: (currentCard.thumbnailUrl || currentCard.imageUrl) as string }}
+                  style={styles.cardFrontCover}
+                  resizeMode="cover"
+                />
+              )}
               <MarkdownCard content={sides[0] || currentCard.front} isRevealed={revealedSideIndex > 0} isTitle />
               {liveCardIpa ? (
                 <Text style={styles.frontIpaText}>{liveCardIpa}</Text>
@@ -683,11 +704,37 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
           handleSkip();
         }}
       />
+
+      {/* Voice Practice Modal */}
+      {currentCard && (
+        <VoicePracticeModal
+          visible={showVoicePractice}
+          word={sides[0] || currentCard.front}
+          ipa={liveCardIpa}
+          meaning={sides[1] || ''}
+          onClose={() => setShowVoicePractice(false)}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  micPracticeBtn: {
+    padding: 6,
+    marginRight: 8,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  cardFrontCover: {
+    width: '100%',
+    height: 140,
+    borderRadius: 12,
+    marginBottom: 12,
+    backgroundColor: '#F3F4F6'
+  },
   container: {
     flex: 1,
     backgroundColor: '#FAFAFA'

@@ -98,7 +98,9 @@ export function CardEditor({
           isPinned,
           reviewReverse,
           ipaUs: ipaUs || card.ipaUs,
-          ipaUk: ipaUk || card.ipaUk
+          ipaUk: ipaUk || card.ipaUk,
+          imageUrl: card.imageUrl,
+          thumbnailUrl: card.thumbnailUrl
         });
       } else {
         await CardRepository.create({

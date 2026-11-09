@@ -97,6 +97,12 @@ async function safeMigrate(connection: SQLite.SQLiteDatabase) {
   if (!cols.has('ipa_uk')) {
     await connection.execAsync('ALTER TABLE cards ADD COLUMN ipa_uk TEXT;');
   }
+  if (!cols.has('image_url')) {
+    await connection.execAsync('ALTER TABLE cards ADD COLUMN image_url TEXT;');
+  }
+  if (!cols.has('thumbnail_url')) {
+    await connection.execAsync('ALTER TABLE cards ADD COLUMN thumbnail_url TEXT;');
+  }
   await connection.execAsync(`
     CREATE TABLE IF NOT EXISTS dictionary_cache (
       word TEXT PRIMARY KEY COLLATE NOCASE,
@@ -107,6 +113,13 @@ async function safeMigrate(connection: SQLite.SQLiteDatabase) {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_dict_word ON dictionary_cache(word);
+
+    CREATE TABLE IF NOT EXISTS image_cache (
+      keyword TEXT PRIMARY KEY COLLATE NOCASE,
+      images_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_img_keyword ON image_cache(keyword);
   `);
 
   // Tự động bổ sung phiên âm IPA cho tất cả các thẻ đã có sẵn trong CSDL

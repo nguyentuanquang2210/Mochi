@@ -16,15 +16,24 @@ import {
 import { Feather, Ionicons, MaterialCommunityIcons } from './Icons';
 import { SpeakerButton } from './SpeakerButton';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
+import { ImagePickerSection } from './ImagePickerSection';
 import { DictionaryService, SuggestionItem } from '../../services/dictionary';
+import { ImageSearchService } from '../../services/imageSearch';
 import { CardRepository } from '../../data/repositories';
 import { TOEIC_MAP } from '../../data/toeicWordlist';
+import type { ImageItem } from '../../domain/types';
 
 interface QuickAddCardModalProps {
   visible: boolean;
   deckName: string;
   onClose: () => void;
-  onSaveCard: (sides: string[], ipaUs?: string | null, ipaUk?: string | null) => Promise<void>;
+  onSaveCard: (
+    sides: string[],
+    ipaUs?: string | null,
+    ipaUk?: string | null,
+    imageUrl?: string | null,
+    thumbnailUrl?: string | null
+  ) => Promise<void>;
 }
 
 export function QuickAddCardModal({
@@ -37,6 +46,11 @@ export function QuickAddCardModal({
   const [sides, setSides] = useState<string[]>(['']);
   const [activeSideIndex, setActiveSideIndex] = useState(0);
   const [saving, setSaving] = useState(false);
+
+  // Images state
+  const [images, setImages] = useState<ImageItem[]>([]);
+  const [selectedImage, setSelectedImage] = useState<ImageItem | null>(null);
+  const [imagesLoading, setImagesLoading] = useState(false);
 
   // Autocomplete & IPA state
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
@@ -60,6 +74,9 @@ export function QuickAddCardModal({
     setShowSuggestions(false);
     setSelectedIpaUs(null);
     setSelectedIpaUk(null);
+    setImages([]);
+    setSelectedImage(null);
+    setImagesLoading(false);
     autoFilledSideIndexRef.current = null;
     setAutoFilledSideIndex(null);
     if (debounceTimerRef.current) {
@@ -127,6 +144,20 @@ export function QuickAddCardModal({
                 setSelectedIpaUs(info.ipaUs || null);
                 setSelectedIpaUk(info.ipaUk || null);
               }
+            }
+
+            // Tự động tìm kiếm hình ảnh minh họa khi từ vựng hợp lệ
+            if (DictionaryService.validateSingleWord(trimmed).isValid) {
+              setImagesLoading(true);
+              ImageSearchService.searchImages(trimmed)
+                .then(res => {
+                  setImages(res);
+                  if (res.length > 0 && !selectedImage) {
+                    setSelectedImage(res[0]);
+                  }
+                })
+                .catch(() => {})
+                .finally(() => setImagesLoading(false));
             }
           } finally {
             setSuggestionsLoading(false);
@@ -210,6 +241,20 @@ export function QuickAddCardModal({
         }
       }).catch(() => {});
     }
+
+    // Tự động tìm kiếm hình ảnh minh họa theo ngữ cảnh nghĩa
+    setImagesLoading(true);
+    ImageSearchService.searchImages(item.word, item.meaningVi || undefined)
+      .then(res => {
+        setImages(res);
+        if (res.length > 0) {
+          setSelectedImage(res[0]); // Mặc định chọn ảnh tốt nhất đầu tiên
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        setImagesLoading(false);
+      });
   };
 
   const handleSave = async () => {
@@ -266,7 +311,13 @@ export function QuickAddCardModal({
                 onPress: async () => {
                   setSaving(true);
                   try {
-                    await onSaveCard(currentSides, null, null);
+                    await onSaveCard(
+                      currentSides,
+                      null,
+                      null,
+                      selectedImage?.url || null,
+                      selectedImage?.thumbnailUrl || null
+                    );
                     handleClose();
                   } finally {
                     setSaving(false);
@@ -300,7 +351,13 @@ export function QuickAddCardModal({
         } catch {}
       }
 
-      await onSaveCard(currentSides, ipaUs, ipaUk);
+      await onSaveCard(
+        currentSides,
+        ipaUs,
+        ipaUk,
+        selectedImage?.url || null,
+        selectedImage?.thumbnailUrl || null
+      );
       handleClose();
     } catch (err: any) {
       Alert.alert('Lỗi lưu thẻ', err?.message || 'Không thể lưu thẻ.');
@@ -405,6 +462,16 @@ export function QuickAddCardModal({
                       {selectedIpaUs || selectedIpaUk}
                     </Text>
                   ) : null}
+
+                  {/* Lựa chọn hình ảnh minh họa tự động */}
+                  {index === 0 && (
+                    <ImagePickerSection
+                      images={images}
+                      selectedImageUrl={selectedImage?.url || null}
+                      loading={imagesLoading}
+                      onSelectImage={setSelectedImage}
+                    />
+                  )}
 
                   {/* Danh sách gợi ý từ Autocomplete xuất hiện ngay dưới ô nhập từ tiếng Anh */}
                   {index === 0 && showSuggestions && (

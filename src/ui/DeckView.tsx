@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -177,7 +178,13 @@ export function DeckView({
   };
 
   // Quick Add Card with dynamic hidden sides and IPA
-  const handleQuickAddSave = async (sides: string[], ipaUs?: string | null, ipaUk?: string | null) => {
+  const handleQuickAddSave = async (
+    sides: string[],
+    ipaUs?: string | null,
+    ipaUk?: string | null,
+    imageUrl?: string | null,
+    thumbnailUrl?: string | null
+  ) => {
     const content = sides.join('\n---\n');
 
     await CardRepository.create({
@@ -186,13 +193,16 @@ export function DeckView({
       isPinned: false,
       reviewReverse: false,
       ipaUs,
-      ipaUk
+      ipaUk,
+      imageUrl,
+      thumbnailUrl
     });
     onRefresh();
   };
 
   const renderGridCardItem = (card: CardSummary) => {
     const ipa = getCardIpa(card);
+    const cardImg = card.thumbnailUrl || card.imageUrl;
     return (
       <TouchableOpacity
         key={card.id}
@@ -202,14 +212,21 @@ export function DeckView({
         onLongPress={() => setSelectedCardForOptions(card)}
       >
         <View style={styles.cardTileTop}>
-          <Text numberOfLines={1} style={styles.cardTitleText}>
-            {card.front}
-          </Text>
-          {ipa ? (
-            <Text numberOfLines={1} style={styles.cardIpaText}>
-              {ipa}
-            </Text>
-          ) : null}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, marginRight: cardImg ? 8 : 0 }}>
+              <Text numberOfLines={1} style={styles.cardTitleText}>
+                {card.front}
+              </Text>
+              {ipa ? (
+                <Text numberOfLines={1} style={styles.cardIpaText}>
+                  {ipa}
+                </Text>
+              ) : null}
+            </View>
+            {cardImg ? (
+              <Image source={{ uri: cardImg }} style={styles.cardGridThumb} resizeMode="cover" />
+            ) : null}
+          </View>
           {card.isPinned && (
             <MaterialCommunityIcons
               name="pin"
@@ -849,6 +866,12 @@ const styles = StyleSheet.create({
   cardTileTop: {
     flex: 1,
     position: 'relative'
+  },
+  cardGridThumb: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    backgroundColor: '#F3F4F6'
   },
   cardTitleText: {
     fontSize: 16,

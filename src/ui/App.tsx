@@ -123,14 +123,22 @@ export default function App() {
     }
   };
 
-  const handleSaveQuickCard = async (sides: string[], ipaUs?: string | null, ipaUk?: string | null) => {
+  const handleSaveQuickCard = async (
+    sides: string[],
+    ipaUs?: string | null,
+    ipaUk?: string | null,
+    imageUrl?: string | null,
+    thumbnailUrl?: string | null
+  ) => {
     if (!activeDeckId) return;
     const content = sides.join('\n---\n');
     await CardRepository.create({
       deckId: activeDeckId,
       content,
       ipaUs,
-      ipaUk
+      ipaUk,
+      imageUrl,
+      thumbnailUrl
     });
     await refreshData(activeDeckId);
   };

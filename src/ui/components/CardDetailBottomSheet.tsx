@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  Image,
   Modal,
   ScrollView,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from './Icons';
 import { SpeakerButton } from './SpeakerButton';
+import { VoicePracticeModal } from './VoicePracticeModal';
 import { TOEIC_MAP } from '../../data/toeicWordlist';
 import type { CardSummary, Deck } from '../../domain/types';
 
@@ -35,12 +37,14 @@ export function CardDetailBottomSheet({
   onMoveToDeck
 }: CardDetailBottomSheetProps) {
   const [showDeckPicker, setShowDeckPicker] = React.useState(false);
+  const [showVoicePractice, setShowVoicePractice] = useState(false);
 
   if (!card) return null;
 
   const sides = card.sides && card.sides.length > 0 ? card.sides : [card.front, card.back].filter(Boolean);
   const intervalDays = card.intervalDays ?? 0;
   const reps = card.reps ?? 0;
+  const cardImg = card.thumbnailUrl || card.imageUrl;
 
   const cardIpa = (() => {
     if (card.ipaUs || card.ipaUk) return card.ipaUs || card.ipaUk;
@@ -110,6 +114,9 @@ export function CardDetailBottomSheet({
 
           {/* Card Content with all sides separated by dashed lines */}
           <ScrollView style={styles.bodyScroll} showsVerticalScrollIndicator={false}>
+            {cardImg ? (
+              <Image source={{ uri: cardImg as string }} style={styles.sheetCoverImage} resizeMode="cover" />
+            ) : null}
             {sides.map((sideText, idx) => (
               <View key={idx}>
                 {idx > 0 && <View style={styles.dashedDivider} />}
@@ -122,11 +129,31 @@ export function CardDetailBottomSheet({
                       <Text style={styles.sheetIpaText}>{cardIpa}</Text>
                     ) : null}
                   </View>
-                  <SpeakerButton text={sideText} size={17} style={styles.speakerBtn} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {idx === 0 && (
+                      <TouchableOpacity
+                        style={styles.sheetMicBtn}
+                        onPress={() => setShowVoicePractice(true)}
+                        activeOpacity={0.7}
+                      >
+                        <Feather name="mic" size={16} color="#2563EB" />
+                      </TouchableOpacity>
+                    )}
+                    <SpeakerButton text={sideText} size={17} style={styles.speakerBtn} />
+                  </View>
                 </View>
               </View>
             ))}
           </ScrollView>
+
+          {/* Voice Practice Modal */}
+          <VoicePracticeModal
+            visible={showVoicePractice}
+            word={sides[0] || card.front}
+            ipa={cardIpa}
+            meaning={sides[1] || ''}
+            onClose={() => setShowVoicePractice(false)}
+          />
 
           {/* Footer status matching Screenshot 1 */}
           <View style={styles.sheetFooter}>
@@ -217,6 +244,19 @@ const styles = StyleSheet.create({
   },
   bodyScroll: {
     paddingVertical: 16
+  },
+  sheetCoverImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 12,
+    marginBottom: 12,
+    backgroundColor: '#F3F4F6'
+  },
+  sheetMicBtn: {
+    padding: 6,
+    marginRight: 6,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF'
   },
   sideRow: {
     flexDirection: 'row',

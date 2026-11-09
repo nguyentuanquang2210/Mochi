@@ -33,6 +33,17 @@ export interface Card {
   reviewReverse: boolean;
   ipaUs?: string | null;
   ipaUk?: string | null;
+  imageUrl?: string | null;
+  thumbnailUrl?: string | null;
+}
+
+export interface ImageItem {
+  id: string;
+  url: string;
+  thumbnailUrl: string;
+  title?: string;
+  source: 'wikimedia' | 'pexels' | 'pixabay';
+  photographer?: string;
 }
 
 export interface CardSummary extends Card {

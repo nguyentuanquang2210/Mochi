@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Feather } from './Icons';
 import type { SuggestionItem } from '../../services/dictionary';
-
+//alooo
 interface AutocompleteDropdownProps {
   visible: boolean;
   suggestions: SuggestionItem[];

@@ -43,6 +43,8 @@ const asCardSummary = (r: any): CardSummary => {
     reviewReverse: Boolean(r.review_reverse),
     ipaUs: r.ipa_us || null,
     ipaUk: r.ipa_uk || null,
+    imageUrl: r.image_url || null,
+    thumbnailUrl: r.thumbnail_url || null,
     tags,
     sides,
     hiddenSidesCount,
@@ -120,6 +122,8 @@ export const CardRepository = {
     reviewReverse?: boolean;
     ipaUs?: string | null;
     ipaUk?: string | null;
+    imageUrl?: string | null;
+    thumbnailUrl?: string | null;
   }): Promise<CardSummary> {
     const now = Date.now();
     const cardId = id();
@@ -134,9 +138,9 @@ export const CardRepository = {
 
     await withTransaction(async tx => {
       await tx.runAsync(
-        `INSERT INTO cards (id, deck_id, front, back, content, card_type, objective, created_at, updated_at, archived_at, trashed_at, is_pinned, review_reverse, ipa_us, ipa_uk)
-         VALUES (?, ?, ?, ?, ?, 'basic', 'meaning_en_vi', ?, ?, NULL, NULL, ?, ?, ?, ?)`,
-        cardId, input.deckId, front, back, content, now, now, input.isPinned ? 1 : 0, input.reviewReverse ? 1 : 0, input.ipaUs || null, input.ipaUk || null
+        `INSERT INTO cards (id, deck_id, front, back, content, card_type, objective, created_at, updated_at, archived_at, trashed_at, is_pinned, review_reverse, ipa_us, ipa_uk, image_url, thumbnail_url)
+         VALUES (?, ?, ?, ?, ?, 'basic', 'meaning_en_vi', ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?)`,
+        cardId, input.deckId, front, back, content, now, now, input.isPinned ? 1 : 0, input.reviewReverse ? 1 : 0, input.ipaUs || null, input.ipaUk || null, input.imageUrl || null, input.thumbnailUrl || null
       );
       await persistState(tx, state);
 
@@ -163,6 +167,8 @@ export const CardRepository = {
     archivedAt?: number | null;
     ipaUs?: string | null;
     ipaUk?: string | null;
+    imageUrl?: string | null;
+    thumbnailUrl?: string | null;
   }): Promise<void> {
     const now = Date.now();
     const content = input.content.trim();
@@ -197,6 +203,14 @@ export const CardRepository = {
       if (input.ipaUk !== undefined) {
         query += ', ipa_uk = ?';
         args.push(input.ipaUk);
+      }
+      if (input.imageUrl !== undefined) {
+        query += ', image_url = ?';
+        args.push(input.imageUrl);
+      }
+      if (input.thumbnailUrl !== undefined) {
+        query += ', thumbnail_url = ?';
+        args.push(input.thumbnailUrl);
       }
       query += ' WHERE id = ?';
       args.push(cardId);
