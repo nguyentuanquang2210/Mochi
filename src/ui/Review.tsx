@@ -232,13 +232,12 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     dropAnim.setValue(0);
     setRevealedSideIndex(0);
 
-    // VÒNG LẶP HỌC LẠI KHI QUÊN (Intra-session learning loop chuẩn Mochi Cards & Anki):
-    // Nếu người dùng bấm 'again' (Quên / ✕):
-    // Chèn lại thẻ này vào sau 3 thẻ nữa (hoặc cuối danh sách) để người học gặp lại và ôn lại ngay trong phiên học
+    // VÒNG LẶP HỌC LẠI KHI QUÊN (Intra-session learning loop chuẩn Mochi Cards & Duolingo):
+    // Nếu người dùng trả lời sai hoặc bấm 'again' (Quên / ✕):
+    // Chèn thẻ này vào CUỐI CÙNG hàng đợi để người học bắt buộc phải làm lại ở cuối phiên học cho đến khi thuộc
     if (rating === 'again') {
       const nextQueue = [...curQueue];
-      const reinsertIndex = Math.min(nextQueue.length, curIdx + 4);
-      nextQueue.splice(reinsertIndex, 0, item);
+      nextQueue.push(item);
       queueRef.current = nextQueue;
       setQueue(nextQueue);
     }

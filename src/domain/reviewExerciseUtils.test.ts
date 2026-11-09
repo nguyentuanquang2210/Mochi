@@ -74,11 +74,10 @@ describe('ReviewExerciseUtils', () => {
       expect(families[2]).toEqual({ pos: 'adj', word: 'decisive', meaning: 'mang tính quyết đoán' });
     });
 
-    it('should fall back to generated family variants for other words', () => {
+    it('should fall back to root word only for unknown words', () => {
       const families = getWordFamily('test');
-      expect(families.length).toBeGreaterThanOrEqual(3);
+      expect(families.length).toBeGreaterThanOrEqual(1);
       expect(families[0].word).toBe('test');
-      expect(families[1].word).toBe('testtion');
     });
   });
 });

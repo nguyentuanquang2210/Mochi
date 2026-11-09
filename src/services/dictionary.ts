@@ -49,6 +49,144 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
+// Bảng kho từ điển đa nghĩa chuẩn cho các từ tiếng Anh thông dụng (kèm ví dụ và bản dịch cho từng nghĩa)
+export const COMMON_MULTI_MEANINGS: Record<string, WordMeaningItem[]> = {
+  flyer: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'phi công',
+      exampleEn: 'The flyer navigated the airplane safely through the storm.',
+      exampleVi: 'Người phi công đã điều khiển máy bay an toàn qua cơn bão.'
+    },
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'tờ rơi (quảng cáo)',
+      exampleEn: 'They distributed flyers on the street for the event.',
+      exampleVi: 'Họ đã phát tờ rơi trên đường phố cho sự kiện.'
+    }
+  ],
+  bank: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'ngân hàng',
+      exampleEn: 'She deposited the money in the local bank.',
+      exampleVi: 'Cô ấy đã gửi tiền vào ngân hàng địa phương.'
+    },
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'bờ sông, bờ đê',
+      exampleEn: 'We sat on the grassy bank of the river.',
+      exampleVi: 'Chúng tôi ngồi trên bờ cỏ của dòng sông.'
+    }
+  ],
+  book: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'cuốn sách',
+      exampleEn: 'I am reading an interesting book.',
+      exampleVi: 'Tôi đang đọc một cuốn sách thú vị.'
+    },
+    {
+      partOfSpeech: 'verb',
+      definitionVi: 'đặt trước, đặt vé',
+      exampleEn: 'You should book your flight tickets early.',
+      exampleVi: 'Bạn nên đặt vé máy bay sớm.'
+    }
+  ],
+  light: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'ánh sáng, đèn',
+      exampleEn: 'Turn on the light in the living room.',
+      exampleVi: 'Hãy bật đèn trong phòng khách lên.'
+    },
+    {
+      partOfSpeech: 'adj',
+      definitionVi: 'nhẹ, thanh đạm',
+      exampleEn: 'This new laptop is extremely light and portable.',
+      exampleVi: 'Chiếc máy tính xách tay mới này cực kỳ nhẹ và tiện mang theo.'
+    }
+  ],
+  address: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'địa chỉ',
+      exampleEn: 'Please write down your current home address.',
+      exampleVi: 'Vui lòng ghi lại địa chỉ nhà hiện tại của bạn.'
+    },
+    {
+      partOfSpeech: 'verb',
+      definitionVi: 'giải quyết, xử lý',
+      exampleEn: 'We need to address this customer complaint promptly.',
+      exampleVi: 'Chúng ta cần giải quyết khiếu nại của khách hàng này kịp thời.'
+    }
+  ],
+  present: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'món quà',
+      exampleEn: 'He gave her a wonderful birthday present.',
+      exampleVi: 'Anh ấy đã tặng cô ấy một món quà sinh nhật tuyệt vời.'
+    },
+    {
+      partOfSpeech: 'verb',
+      definitionVi: 'thuyết trình, trình bày',
+      exampleEn: 'The team will present the new project tomorrow.',
+      exampleVi: 'Nhóm sẽ thuyết trình về dự án mới vào ngày mai.'
+    }
+  ],
+  shovel: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'cái xẻng',
+      exampleEn: 'He used a shovel to clear snow from the driveway.',
+      exampleVi: 'Anh ấy đã dùng một chiếc xẻng để dọn tuyết khỏi lối đi.'
+    },
+    {
+      partOfSpeech: 'verb',
+      definitionVi: 'xúc bằng xẻng',
+      exampleEn: 'Workers had to shovel dirt all afternoon.',
+      exampleVi: 'Các công nhân đã phải xúc đất suốt buổi chiều.'
+    }
+  ],
+  contract: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'hợp đồng',
+      exampleEn: 'Both parties signed the employment contract.',
+      exampleVi: 'Cả hai bên đã ký vào hợp đồng lao động.'
+    },
+    {
+      partOfSpeech: 'verb',
+      definitionVi: 'co lại, thu nhỏ',
+      exampleEn: 'Metals contract as they become colder.',
+      exampleVi: 'Kim loại co lại khi chúng trở nên lạnh hơn.'
+    }
+  ],
+  record: [
+    {
+      partOfSpeech: 'noun',
+      definitionVi: 'kỷ lục, hồ sơ ghi chép',
+      exampleEn: 'She set a new world record at the competition.',
+      exampleVi: 'Cô ấy đã lập một kỷ lục thế giới mới tại cuộc thi.'
+    },
+    {
+      partOfSpeech: 'verb',
+      definitionVi: 'ghi chép, ghi âm',
+      exampleEn: 'Please record all financial transactions carefully.',
+      exampleVi: 'Vui lòng ghi chép lại mọi giao dịch tài chính cẩn thận.'
+    }
+  ],
+  deny: [
+    {
+      partOfSpeech: 'verb',
+      definitionVi: 'phủ nhận, bác bỏ, từ chối',
+      exampleEn: 'The official strongly denied the corruption allegations.',
+      exampleVi: 'Vị quan chức đã kiên quyết phủ nhận các cáo buộc tham nhũng.'
+    }
+  ]
+};
+
 // Bảng từ điển dịch nhanh offline cho các từ và cụm từ tiếng Anh thông dụng (phản hồi tức thì 0ms)
 const COMMON_TRANSLATIONS: Record<string, string> = {
   // Cụm từ thông dụng (phrasal verbs & common collocations)
@@ -800,7 +938,9 @@ class DictionaryServiceImpl {
     let exampleEn: string | null = baseInfo.exampleEn || null;
     let exampleVi: string | null = baseInfo.exampleVi || null;
     let meaningVi: string | null = baseInfo.meaningVi || null;
+    let explanationVi: string | null = baseInfo.explanationVi || null;
     let partOfSpeech: string | null = baseInfo.partOfSpeech || null;
+    let meaningsList: WordMeaningItem[] = [];
 
     // 1. Kiểm tra SQLite cache data_json xem đã từng lưu ví dụ hoặc bản dịch chưa
     try {
@@ -817,67 +957,69 @@ class DictionaryServiceImpl {
       }
     } catch {}
 
-    // 2. Tra cứu nguồn từ điển chuẩn qua Google Translate Dictionary Engine
-    let meaningsList: WordMeaningItem[] = [];
-    let explanationVi: string | null = null;
+    // 1. Kiểm tra kho từ đa nghĩa chuẩn COMMON_MULTI_MEANINGS (phản hồi tức thì 0ms, đầy đủ ví dụ & dịch cho từng nghĩa)
+    if (COMMON_MULTI_MEANINGS[word]) {
+      const predefined = COMMON_MULTI_MEANINGS[word];
+      meaningsList = [...predefined];
+      meaningVi = predefined[0].definitionVi;
+      exampleEn = predefined[0].exampleEn || null;
+      exampleVi = predefined[0].exampleVi || null;
+      partOfSpeech = predefined[0].partOfSpeech || null;
+    }
 
-    try {
-      const gDict = await this.fetchGoogleDictionary(word);
-      if (gDict) {
-        if (!meaningVi && gDict.primaryTranslation) {
-          meaningVi = gDict.primaryTranslation;
-        }
+    // 2. Nếu chưa có, tra cứu nguồn từ điển đa nghĩa trực tuyến từ Free Dictionary API (dictionaryapi.dev)
+    if (meaningsList.length === 0) {
+      try {
+        const res = await fetchWithTimeout(
+          `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
+          { headers: { Accept: 'application/json' } },
+          2500
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0].meanings)) {
+            const rawMeanings = data[0].meanings;
 
-        if (gDict.meanings.length > 0) {
-          if (!partOfSpeech) {
-            partOfSpeech = gDict.meanings[0].partOfSpeech;
-          }
-          for (const gm of gDict.meanings) {
-            meaningsList.push({
-              partOfSpeech: gm.partOfSpeech,
-              definitionVi: gm.definitions.slice(0, 3).join(', '),
-              exampleEn: null,
-              exampleVi: null
-            });
-          }
-        }
-      }
-    } catch {}
+            // Thu thập tối đa 2-3 nét nghĩa riêng biệt kèm câu ví dụ của từng nghĩa đó
+            for (const rm of rawMeanings) {
+              if (meaningsList.length >= 2) break;
+              const pos = rm.partOfSpeech || '';
+              const defs = rm.definitions || [];
+              if (defs.length === 0) continue;
 
-    // 3. Tra cứu câu ví dụ tiếng Anh thực tế từ Free Dictionary API (dictionaryapi.dev)
-    try {
-      const res = await fetchWithTimeout(
-        `https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`,
-        { headers: { Accept: 'application/json' } },
-        2500
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0].meanings)) {
-          const rawMeanings = data[0].meanings;
-          const extracted = this.extractBestExample(rawMeanings);
-          if (!exampleEn && extracted.example) {
-            exampleEn = extracted.example;
-          }
-          if (!partOfSpeech && extracted.partOfSpeech) {
-            partOfSpeech = extracted.partOfSpeech;
-          }
+              // Ưu tiên definition có câu ví dụ thực tế
+              const defWithEx = defs.find((d: any) => d.example && d.example.trim().length >= 6) || defs[0];
+              const exEn = defWithEx.example ? defWithEx.example.trim() : null;
+              let defVi = '';
 
-          // Lấy giải thích ngắn gọn (tối đa 1 câu súc tích) nếu có
-          if (extracted.definition && extracted.definition.length <= 120) {
-            try {
-              const transDef = await this.translateEnToVi(extracted.definition);
-              if (transDef && transDef.length <= 100) {
-                explanationVi = transDef;
+              if (defWithEx.definition) {
+                // Rút gọn định nghĩa thành từ/nghĩa cô đọng
+                const shortDef = defWithEx.definition.split(/[.;]/)[0].trim();
+                const trans = await this.translateEnToVi(shortDef);
+                defVi = trans || shortDef;
               }
-            } catch {}
+
+              if (defVi) {
+                let exVi: string | null = null;
+                if (exEn) {
+                  exVi = await this.translateEnToVi(exEn);
+                }
+
+                meaningsList.push({
+                  partOfSpeech: pos,
+                  definitionVi: defVi,
+                  exampleEn: exEn,
+                  exampleVi: exVi
+                });
+              }
+            }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
-    // 4. Nếu vẫn chưa có câu ví dụ, thử tra các dạng từ gốc (lemmas)
-    if (!exampleEn) {
+    // 3. Nếu vẫn chưa có câu ví dụ, thử tra các dạng từ gốc (lemmas)
+    if (!exampleEn && meaningsList.length > 0 && !meaningsList[0].exampleEn) {
       const baseForms = this.getBaseForms(word);
       for (const base of baseForms) {
         try {
@@ -891,8 +1033,8 @@ class DictionaryServiceImpl {
             if (Array.isArray(data) && data.length > 0 && Array.isArray(data[0].meanings)) {
               const extracted = this.extractBestExample(data[0].meanings);
               if (extracted.example) {
-                exampleEn = extracted.example;
-                if (!partOfSpeech) partOfSpeech = extracted.partOfSpeech;
+                meaningsList[0].exampleEn = extracted.example;
+                meaningsList[0].exampleVi = await this.translateEnToVi(extracted.example);
                 break;
               }
             }
@@ -901,24 +1043,13 @@ class DictionaryServiceImpl {
       }
     }
 
-    // 5. Dịch câu ví dụ tiếng Anh sang nghĩa tiếng Việt
-    if (exampleEn && !exampleVi) {
-      try {
-        const translatedEx = await this.translateEnToVi(exampleEn);
-        if (translatedEx) {
-          exampleVi = translatedEx;
-        }
-      } catch {}
-    }
-
-    // Gắn câu ví dụ vào meaning đầu tiên nếu có
-    if (meaningsList.length > 0 && exampleEn) {
-      meaningsList[0].exampleEn = exampleEn;
-      meaningsList[0].exampleVi = exampleVi;
-    }
-
-    // 6. Nếu từ chưa có nghĩa tiếng Việt, ưu tiên TOEIC_MAP hoặc Google Translate
-    if (!meaningVi) {
+    // 4. Nếu từ chưa có nghĩa tiếng Việt, ưu tiên TOEIC_MAP hoặc Google Translate
+    if (!meaningVi && meaningsList.length > 0) {
+      meaningVi = meaningsList[0].definitionVi;
+      exampleEn = meaningsList[0].exampleEn || null;
+      exampleVi = meaningsList[0].exampleVi || null;
+      partOfSpeech = meaningsList[0].partOfSpeech || null;
+    } else if (!meaningVi) {
       const toeicMatch = TOEIC_MAP.get(word);
       if (toeicMatch?.meaningVi) {
         meaningVi = toeicMatch.meaningVi;
@@ -947,11 +1078,11 @@ class DictionaryServiceImpl {
 
     const fullResult: DictionaryWordInfo = {
       ...baseInfo,
-      exampleEn,
-      exampleVi,
-      meaningVi,
+      exampleEn: exampleEn || meaningsList[0]?.exampleEn || null,
+      exampleVi: exampleVi || meaningsList[0]?.exampleVi || null,
+      meaningVi: meaningVi || meaningsList[0]?.definitionVi || null,
       explanationVi,
-      partOfSpeech,
+      partOfSpeech: partOfSpeech || meaningsList[0]?.partOfSpeech || null,
       meaningsList: meaningsList.length > 0 ? meaningsList : undefined
     };
 
@@ -972,11 +1103,11 @@ class DictionaryServiceImpl {
           word,
           ipaUs: fullResult.ipaUs,
           ipaUk: fullResult.ipaUk,
-          exampleEn,
-          exampleVi,
-          meaningVi,
+          exampleEn: fullResult.exampleEn,
+          exampleVi: fullResult.exampleVi,
+          meaningVi: fullResult.meaningVi,
           explanationVi,
-          partOfSpeech
+          partOfSpeech: fullResult.partOfSpeech
         }),
         Date.now()
       );
@@ -987,46 +1118,44 @@ class DictionaryServiceImpl {
 
   /**
    * Tạo chuỗi nội dung chuẩn cho mặt ẩn (Hidden Side) theo đúng format yêu cầu:
-   * - Nghĩa: ... (n hay v hay adj)
-   * - Giải thích: ... (nếu có)
-   * - Ví dụ: 📝 <câu tiếng Anh>
+   * - Nghĩa: ...
+   * - Câu ví dụ: 📝 <câu tiếng Anh>
    *   (<nghĩa tiếng Việt>)
+   *
+   * Nếu có nhiều nghĩa, mỗi nghĩa là 1 block riêng biệt có câu ví dụ tương ứng!
    */
   formatHiddenSideContent(info: DictionaryWordInfo): string {
-    const sections: string[] = [];
-
-    // 1. Dòng Nghĩa kèm từ loại
-    if (info.meaningsList && info.meaningsList.length > 0) {
-      if (info.meaningsList.length === 1) {
-        const m = info.meaningsList[0];
+    if (info.meaningsList && info.meaningsList.length > 1) {
+      const blocks: string[] = [];
+      for (const m of info.meaningsList) {
+        const lines: string[] = [];
         const posText = m.partOfSpeech ? ` (${m.partOfSpeech})` : '';
-        sections.push(`- Nghĩa: ${m.definitionVi}${posText}`);
-      } else {
-        const meaningItems = info.meaningsList.map((m, idx) => {
-          const posText = m.partOfSpeech ? ` (${m.partOfSpeech})` : '';
-          return `  ${idx + 1}. ${m.definitionVi}${posText}`;
-        });
-        sections.push(`- Nghĩa:\n${meaningItems.join('\n')}`);
+        lines.push(`- Nghĩa: ${m.definitionVi}${posText}`);
+        if (m.exampleEn) {
+          lines.push(`- Câu ví dụ: 📝 ${m.exampleEn}`);
+          if (m.exampleVi) {
+            lines.push(`  (${m.exampleVi})`);
+          }
+        }
+        blocks.push(lines.join('\n'));
       }
-    } else if (info.meaningVi) {
-      const posText = info.partOfSpeech ? ` (${info.partOfSpeech})` : '';
-      sections.push(`- Nghĩa: ${info.meaningVi}${posText}`);
+      return blocks.join('\n\n');
     }
 
-    // 2. Dòng Giải thích (ngắn gọn súc tích nếu có)
-    if (info.explanationVi && info.explanationVi.trim()) {
-      sections.push(`- Giải thích: ${info.explanationVi.trim()}`);
+    // Nếu chỉ có 1 nghĩa
+    const lines: string[] = [];
+    const pos = info.partOfSpeech ? ` (${info.partOfSpeech})` : '';
+    const meaning = (info.meaningVi || '').trim();
+    if (meaning) {
+      lines.push(`- Nghĩa: ${meaning}${pos}`);
     }
-
-    // 3. Dòng Ví dụ và Dịch câu
     if (info.exampleEn) {
-      sections.push(`- Ví dụ: 📝 ${info.exampleEn}`);
+      lines.push(`- Câu ví dụ: 📝 ${info.exampleEn}`);
       if (info.exampleVi) {
-        sections.push(`  (${info.exampleVi})`);
+        lines.push(`  (${info.exampleVi})`);
       }
     }
-
-    return sections.join('\n');
+    return lines.join('\n');
   }
 
   /**

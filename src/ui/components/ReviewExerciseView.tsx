@@ -168,11 +168,49 @@ export function ReviewExerciseView({
       // Ghi nhận lượt học tốt vào FSRS
       setTimeout(() => {
         onAnswer('good');
-      }, 1100);
+      }, 1200);
     } else {
-      // Báo quên / học lại
-      onAnswer('again');
+      // Khi trả lời sai: phát âm từ chuẩn xác để người dùng nghe và ghi nhớ
+      SpeechService.speak(targetWord);
+      // Giữ hiển thị khung kết quả kèm nút "Đã hiểu & Ôn lại ở cuối phiên"
     }
+  };
+
+  // Khung phản hồi kết quả trực quan (chuẩn Mochi / Duolingo)
+  const renderFeedbackSection = (overrideTarget?: string, overrideMeaning?: string) => {
+    const finalWord = overrideTarget || targetWord;
+    const finalMeaning = overrideMeaning || cleanMeaning;
+
+    if (!isAnswered) return null;
+
+    if (isCorrect) {
+      return (
+        <View style={styles.successFeedbackBanner}>
+          <Ionicons name="checkmark-circle" size={24} color="#059669" />
+          <Text style={styles.successFeedbackTitle}>Chính xác! 🎉</Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.errorFeedbackCard}>
+        <View style={styles.errorFeedbackHeader}>
+          <Ionicons name="close-circle" size={22} color="#DC2626" />
+          <Text style={styles.errorFeedbackTitle}>Chưa chính xác!</Text>
+        </View>
+        <Text style={styles.errorCorrectWordText}>
+          Đáp án đúng: <Text style={styles.errorCorrectWordHighlight}>{finalWord}</Text>
+        </Text>
+        <Text style={styles.errorMeaningText}>Nghĩa: {finalMeaning}</Text>
+        <TouchableOpacity
+          style={styles.errorContinueBtn}
+          onPress={() => onAnswer('again')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.errorContinueBtnText}>Đã hiểu & Ôn lại ở cuối phiên →</Text>
+        </TouchableOpacity>
+      </View>
+    );
   };
 
   const handleStartSpeaking = async () => {
@@ -331,6 +369,9 @@ export function ReviewExerciseView({
           </View>
         )}
 
+        {/* Phản hồi kết quả đúng / sai & Học lại ở cuối phiên */}
+        {renderFeedbackSection()}
+
         {/* Gợi ý âm thanh */}
         <View style={styles.audioHintRow}>
           <SpeakerButton text={targetWord} size={22} color="#475569" activeColor="#2563EB" />
@@ -367,6 +408,9 @@ export function ReviewExerciseView({
             autoFocus
           />
         </View>
+
+        {/* Phản hồi kết quả đúng / sai & Học lại ở cuối phiên */}
+        {renderFeedbackSection()}
 
         {/* Gợi ý nghĩa nếu người dùng gặp khó */}
         <Text style={styles.listeningMeaningHint}>
@@ -405,6 +449,9 @@ export function ReviewExerciseView({
             </View>
           </View>
         ) : null}
+
+        {/* Phản hồi đúng / sai & Nút học lại */}
+        {renderFeedbackSection()}
 
         {/* Nút Mic đọc to */}
         <View style={styles.speakingActionsRow}>
@@ -446,12 +493,12 @@ export function ReviewExerciseView({
   // 5. GIAO DIỆN ĐIỀN TỪ VÀO CÂU (SENTENCE CLOZE)
   if (exerciseType === 'sentence_cloze') {
     const clozeSentence = exampleInfo ? exampleInfo.clozeSentence : `The word is ________.`;
-    const sentenceTranslation = exampleInfo ? exampleInfo.translation : cleanMeaning;
+    const sentenceTranslation = exampleInfo ? exampleInfo.translation : null;
 
     return (
       <View style={styles.container}>
         <Text style={styles.topLabel}>Điền từ vào câu</Text>
-        <Text style={styles.subInstruction}>Chọn và điền từ thích hợp vào chỗ trống trong ngữ cảnh:</Text>
+        <Text style={styles.subInstruction}>Đọc câu ngữ cảnh và điền từ thích hợp vào chỗ trống:</Text>
 
         {/* Khối câu ví dụ khuyết từ */}
         <View style={styles.sentenceBox}>
@@ -465,6 +512,12 @@ export function ReviewExerciseView({
           ) : null}
         </View>
 
+        {/* Nghĩa của từ cần điền ngay bên dưới câu */}
+        <View style={styles.sentenceHintMeaningBadge}>
+          <Text style={styles.sentenceHintMeaningLabel}>Nghĩa của từ:</Text>
+          <Text style={styles.sentenceHintMeaningVal}>{cleanMeaning}</Text>
+        </View>
+
         {/* Ô điền từ theo gạch chân */}
         <View style={styles.inputArea}>
           <UnderlineWordInput
@@ -474,9 +527,8 @@ export function ReviewExerciseView({
           />
         </View>
 
-        <Text style={styles.sentenceHintMeaning}>
-          Nghĩa của từ cần điền: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{cleanMeaning}</Text>
-        </Text>
+        {/* Phản hồi đúng / sai & Học lại ở cuối phiên */}
+        {renderFeedbackSection()}
       </View>
     );
   }
@@ -484,34 +536,66 @@ export function ReviewExerciseView({
   // 6. GIAO DIỆN HỌ TỪ (WORD FAMILY)
   if (exerciseType === 'word_family') {
     const families = getWordFamily(targetWord);
+    // Chọn dạng từ loại phái sinh để kiểm tra (ví dụ deny -> denial), không hiển thị chữ tiếng Anh để tránh lộ bài
+    const testItem = families.find(f => f.word.toLowerCase() !== targetWord.toLowerCase()) || families[0];
+    const isDerived = testItem.word.toLowerCase() !== targetWord.toLowerCase();
+    const familyTarget = isDerived ? testItem.word : targetWord;
+
     return (
       <View style={styles.container}>
         <Text style={styles.topLabel}>Họ từ (Word Form - TOEIC)</Text>
-        <Text style={styles.subInstruction}>Ghi nhớ các biến thể từ loại của "{targetWord}":</Text>
+        <Text style={styles.subInstruction}>
+          {isDerived
+            ? `Hãy viết dạng ${testItem.pos.toUpperCase()} của từ "${targetWord}":`
+            : `Hãy viết từ vựng có nghĩa sau:`}
+        </Text>
 
-        <View style={styles.wordFamilyCard}>
-          {families.map((item, index) => (
-            <View key={index} style={[styles.familyRow, index > 0 && styles.familyRowDivider]}>
-              <View style={styles.posBadge}>
-                <Text style={styles.posBadgeText}>{item.pos}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.familyWordText}>{item.word}</Text>
-                <Text style={styles.familyMeaningText}>{item.meaning}</Text>
-              </View>
-              <SpeakerButton text={item.word} size={18} color="#64748B" activeColor="#2563EB" />
-            </View>
-          ))}
+        {/* Khung hiển thị câu hỏi từ loại mà KHÔNG làm lộ từ cần viết */}
+        <View style={styles.wordFamilyPromptCard}>
+          <View style={styles.posBadgeHighlight}>
+            <Text style={styles.posBadgeHighlightText}>{testItem.pos.toUpperCase()}</Text>
+          </View>
+          <Text style={styles.wordFamilyPromptMeaning}>
+            "{testItem.meaning}"
+          </Text>
+          {isDerived && (
+            <Text style={styles.wordFamilyPromptHint}>
+              Từ gốc: <Text style={{ fontWeight: '700', color: '#1E293B' }}>{targetWord}</Text>
+            </Text>
+          )}
         </View>
 
-        {/* Ô kiểm tra viết từ chính */}
+        {/* Ô điền từ theo gạch chân cho từ cần kiểm tra */}
         <View style={styles.inputArea}>
           <UnderlineWordInput
-            targetWord={targetWord}
+            key={`wf-${card.id}-${familyTarget}`}
+            targetWord={familyTarget}
             onComplete={handleInputComplete}
             autoFocus
           />
         </View>
+
+        {/* Sau khi đã hoàn thành hoặc trả lời, hiển thị trọn bộ họ từ đầy đủ */}
+        {isAnswered && (
+          <View style={styles.wordFamilyCard}>
+            <Text style={styles.fullFamilyTitle}>Trọn bộ họ từ của "{targetWord}":</Text>
+            {families.map((item, index) => (
+              <View key={index} style={[styles.familyRow, index > 0 && styles.familyRowDivider]}>
+                <View style={styles.posBadge}>
+                  <Text style={styles.posBadgeText}>{item.pos}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.familyWordText}>{item.word}</Text>
+                  <Text style={styles.familyMeaningText}>{item.meaning}</Text>
+                </View>
+                <SpeakerButton text={item.word} size={18} color="#64748B" activeColor="#2563EB" />
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Phản hồi đúng / sai & Học lại ở cuối phiên */}
+        {renderFeedbackSection(familyTarget, testItem.meaning)}
       </View>
     );
   }
@@ -852,6 +936,134 @@ const styles = StyleSheet.create({
   familyMeaningText: {
     fontSize: 12.5,
     color: '#64748B'
+  },
+  successFeedbackBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 16,
+    width: '100%',
+    gap: 8
+  },
+  successFeedbackTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#065F46'
+  },
+  errorFeedbackCard: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 16,
+    width: '100%'
+  },
+  errorFeedbackHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 6
+  },
+  errorFeedbackTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#991B1B'
+  },
+  errorCorrectWordText: {
+    fontSize: 14,
+    color: '#334155',
+    marginBottom: 4
+  },
+  errorCorrectWordHighlight: {
+    fontWeight: '800',
+    color: '#DC2626',
+    fontSize: 15
+  },
+  errorMeaningText: {
+    fontSize: 13,
+    color: '#64748B',
+    marginBottom: 12
+  },
+  errorContinueBtn: {
+    backgroundColor: '#DC2626',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  errorContinueBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '700'
+  },
+  sentenceHintMeaningBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 12,
+    gap: 6
+  },
+  sentenceHintMeaningLabel: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#475569'
+  },
+  sentenceHintMeaningVal: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B'
+  },
+  wordFamilyPromptCard: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    alignItems: 'center',
+    marginBottom: 14,
+    width: '100%'
+  },
+  posBadgeHighlight: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 8
+  },
+  posBadgeHighlightText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+    letterSpacing: 0.5
+  },
+  wordFamilyPromptMeaning: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginBottom: 4
+  },
+  wordFamilyPromptHint: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4
+  },
+  fullFamilyTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 8
   }
 });
 

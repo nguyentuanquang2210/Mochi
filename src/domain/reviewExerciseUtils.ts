@@ -110,51 +110,88 @@ export function extractCleanMeaning(text: string, targetWord?: string): string {
 export function extractExampleSentence(
   content: string,
   targetWord: string
-): { clozeSentence: string; translation: string | null } | null {
+): { clozeSentence: string; translation: string | null; originalSentence: string } | null {
   if (!content) return null;
   const lines = content.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (line.startsWith('📝')) {
-      const sentence = line.replace(/^📝\s*/, '').trim();
+    // Bắt các tiền tố ví dụ: "📝", "- Câu ví dụ: 📝", "- Câu ví dụ:", "- Ví dụ: 📝", "- Ví dụ:"
+    if (
+      line.startsWith('📝') ||
+      /^-?\s*câu ví dụ\s*:\s*/i.test(line) ||
+      /^-?\s*ví dụ\s*:\s*/i.test(line)
+    ) {
+      const sentence = line
+        .replace(/^-?\s*(câu ví dụ|ví dụ)\s*:\s*/i, '')
+        .replace(/^📝\s*/, '')
+        .trim();
+
+      if (!sentence) continue;
+
       let translation: string | null = null;
-      if (i + 1 < lines.length) {
-        const next = lines[i + 1].trim();
+      // Tìm dòng bản dịch trong ngoặc đơn (...) ở ngay sau
+      for (let j = i + 1; j < Math.min(lines.length, i + 3); j++) {
+        const next = lines[j].trim();
         if (next.startsWith('(') && next.endsWith(')')) {
-          translation = next.slice(1, -1);
+          translation = next.slice(1, -1).trim();
+          break;
         }
       }
-      // Thay thế từ mục tiêu bằng chỗ trống
-      const regex = new RegExp(`\\b${targetWord}\\b`, 'gi');
-      const clozeSentence = sentence.replace(regex, '______');
-      return { clozeSentence, translation };
+
+      // Thay thế từ mục tiêu bằng chỗ trống ______
+      const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'gi');
+      let clozeSentence = sentence.replace(regex, '______');
+      if (clozeSentence === sentence) {
+        // Dự phòng nếu không khớp ranh giới từ \b (ví dụ từ chia đuôi)
+        const simpleRegex = new RegExp(escaped, 'gi');
+        clozeSentence = sentence.replace(simpleRegex, '______');
+      }
+
+      return { clozeSentence, translation, originalSentence: sentence };
     }
   }
   return null;
 }
 
-// Lấy danh sách họ từ mô phỏng TOEIC
+// Bảng từ điển họ từ (Word Family) TOEIC chuẩn xác 100%, không sinh từ giả
 export function getWordFamily(
   word: string
 ): { pos: string; word: string; meaning: string }[] {
   const clean = word.toLowerCase().trim();
-  const toeic = TOEIC_MAP.get(clean);
 
-  // Mẫu word families phong phú chuẩn đề thi TOEIC
+  // Bảng Word Form phong phú chuẩn đề thi TOEIC Part 5
   const knownFamilies: Record<string, { pos: string; word: string; meaning: string }[]> = {
+    deny: [
+      { pos: 'verb', word: 'deny', meaning: 'phủ nhận, từ chối' },
+      { pos: 'noun', word: 'denial', meaning: 'sự phủ nhận' },
+      { pos: 'adj', word: 'deniable', meaning: 'có thể phủ nhận' }
+    ],
     decide: [
       { pos: 'verb', word: 'decide', meaning: 'quyết định' },
       { pos: 'noun', word: 'decision', meaning: 'sự quyết định' },
       { pos: 'adj', word: 'decisive', meaning: 'mang tính quyết đoán' }
     ],
-    contract: [
-      { pos: 'noun', word: 'contract', meaning: 'hợp đồng' },
-      { pos: 'verb', word: 'contract', meaning: 'ký kết hợp đồng, thu nhỏ' },
-      { pos: 'adj', word: 'contractual', meaning: 'thuộc về hợp đồng' }
+    apply: [
+      { pos: 'verb', word: 'apply', meaning: 'nộp đơn, áp dụng' },
+      { pos: 'noun', word: 'application', meaning: 'đơn xin, sự ứng dụng' },
+      { pos: 'noun', word: 'applicant', meaning: 'người nộp đơn, ứng viên' },
+      { pos: 'adj', word: 'applicable', meaning: 'có thể áp dụng' }
+    ],
+    acquire: [
+      { pos: 'verb', word: 'acquire', meaning: 'đạt được, thâu tóm' },
+      { pos: 'noun', word: 'acquisition', meaning: 'sự mua lại, thâu tóm' },
+      { pos: 'adj', word: 'acquired', meaning: 'đạt được' }
+    ],
+    manage: [
+      { pos: 'verb', word: 'manage', meaning: 'quản lý, xoay xở' },
+      { pos: 'noun', word: 'management', meaning: 'ban quản lý, sự quản lý' },
+      { pos: 'noun', word: 'manager', meaning: 'người quản lý, trưởng phòng' },
+      { pos: 'adj', word: 'managerial', meaning: 'thuộc về quản lý' }
     ],
     compete: [
-      { pos: 'verb', word: 'compete', meaning: 'cạnh tranh, thi đua' },
-      { pos: 'noun', word: 'competition', meaning: 'sự cạnh tranh, cuộc thi' },
+      { pos: 'verb', word: 'compete', meaning: 'cạnh tranh, thi đấu' },
+      { pos: 'noun', word: 'competition', meaning: 'cuộc thi, sự cạnh tranh' },
       { pos: 'adj', word: 'competitive', meaning: 'có tính cạnh tranh' }
     ],
     satisfy: [
@@ -162,10 +199,52 @@ export function getWordFamily(
       { pos: 'noun', word: 'satisfaction', meaning: 'sự hài lòng' },
       { pos: 'adj', word: 'satisfactory', meaning: 'thỏa đáng, vừa ý' }
     ],
+    produce: [
+      { pos: 'verb', word: 'produce', meaning: 'sản xuất' },
+      { pos: 'noun', word: 'production', meaning: 'sự sản xuất' },
+      { pos: 'noun', word: 'product', meaning: 'sản phẩm' },
+      { pos: 'adj', word: 'productive', meaning: 'có năng suất cao' }
+    ],
     inform: [
       { pos: 'verb', word: 'inform', meaning: 'thông báo, báo tin' },
       { pos: 'noun', word: 'information', meaning: 'thông tin' },
       { pos: 'adj', word: 'informative', meaning: 'cung cấp nhiều tin tức hữu ích' }
+    ],
+    contract: [
+      { pos: 'noun', word: 'contract', meaning: 'hợp đồng' },
+      { pos: 'verb', word: 'contract', meaning: 'ký kết hợp đồng, co lại' },
+      { pos: 'adj', word: 'contractual', meaning: 'thuộc về hợp đồng' }
+    ],
+    invest: [
+      { pos: 'verb', word: 'invest', meaning: 'đầu tư' },
+      { pos: 'noun', word: 'investment', meaning: 'khoản đầu tư' },
+      { pos: 'noun', word: 'investor', meaning: 'nhà đầu tư' }
+    ],
+    employ: [
+      { pos: 'verb', word: 'employ', meaning: 'thuê, tuyển dụng' },
+      { pos: 'noun', word: 'employment', meaning: 'việc làm, sự tuyển dụng' },
+      { pos: 'noun', word: 'employee', meaning: 'nhân viên' },
+      { pos: 'noun', word: 'employer', meaning: 'người tuyển dụng' }
+    ],
+    expand: [
+      { pos: 'verb', word: 'expand', meaning: 'mở rộng, phát triển' },
+      { pos: 'noun', word: 'expansion', meaning: 'sự mở rộng' },
+      { pos: 'adj', word: 'expansive', meaning: 'rộng rãi, bao la' }
+    ],
+    promote: [
+      { pos: 'verb', word: 'promote', meaning: 'thăng chức, quảng bá' },
+      { pos: 'noun', word: 'promotion', meaning: 'sự thăng chức, khuyến mãi' },
+      { pos: 'adj', word: 'promotional', meaning: 'dùng để quảng cáo' }
+    ],
+    succeed: [
+      { pos: 'verb', word: 'succeed', meaning: 'thành công, kế vị' },
+      { pos: 'noun', word: 'success', meaning: 'sự thành công' },
+      { pos: 'adj', word: 'successful', meaning: 'thành công' }
+    ],
+    flyer: [
+      { pos: 'noun', word: 'flyer', meaning: 'tờ rơi quảng cáo / phi công' },
+      { pos: 'verb', word: 'fly', meaning: 'bay' },
+      { pos: 'noun', word: 'flight', meaning: 'chuyến bay' }
     ]
   };
 
@@ -173,11 +252,16 @@ export function getWordFamily(
     return knownFamilies[clean];
   }
 
-  // Tự động suy luận dạng cơ bản
+  // Nếu không có trong danh sách Word Family: chỉ trả về thông tin từ gốc chuẩn, TUYỆT ĐỐI không sinh đuôi giả
+  const toeic = TOEIC_MAP.get(clean);
+  if (toeic) {
+    return [
+      { pos: toeic.pos || 'từ vựng', word: clean, meaning: toeic.meaningVi }
+    ];
+  }
+
   return [
-    { pos: toeic?.pos || 'word', word: clean, meaning: toeic?.meaningVi || 'từ gốc' },
-    { pos: 'noun', word: `${clean}tion`, meaning: 'dạng danh từ' },
-    { pos: 'adj', word: `${clean}ive`, meaning: 'dạng tính từ' }
+    { pos: 'từ vựng', word: clean, meaning: 'từ gốc' }
   ];
 }
 
