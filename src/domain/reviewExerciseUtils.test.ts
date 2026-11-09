@@ -2,12 +2,27 @@ import { describe, expect, it } from 'vitest';
 import {
   extractCleanMeaning,
   extractExampleSentence,
+  extractMeanings,
   getWordFamily
 } from './reviewExerciseUtils';
 
 describe('ReviewExerciseUtils', () => {
-  describe('extractCleanMeaning', () => {
-    it('should strip numerical list prefixes', () => {
+  describe('extractMeanings & extractCleanMeaning', () => {
+    it('should extract structured format with - Nghĩa: line', () => {
+      const content = `- Nghĩa: cái xẻng (n), xúc bằng xẻng (v)\n- Giải thích: Dụng cụ dùng để xúc đào\n- Ví dụ: 📝 He used a shovel.`;
+      const res = extractMeanings(content, 'shovel');
+      expect(res.primaryMeaning).toBe('cái xẻng (n)');
+      expect(res.otherMeanings).toEqual(['xúc bằng xẻng (v)']);
+    });
+
+    it('should extract multiline meanings under - Nghĩa:', () => {
+      const content = `- Nghĩa:\n  1. cái xẻng (noun)\n  2. xúc bằng xẻng (verb)\n- Giải thích: Dụng cụ...`;
+      const res = extractMeanings(content, 'shovel');
+      expect(res.primaryMeaning).toBe('cái xẻng (noun)');
+      expect(res.otherMeanings).toEqual(['xúc bằng xẻng (verb)']);
+    });
+
+    it('should strip numerical list prefixes for legacy cards', () => {
       expect(extractCleanMeaning('1. quyết định, lựa chọn')).toBe('quyết định, lựa chọn');
       expect(extractCleanMeaning('2. Người điều khiển (noun)')).toBe('Người điều khiển (noun)');
     });
@@ -15,6 +30,13 @@ describe('ReviewExerciseUtils', () => {
     it('should strip dash and bullet prefixes', () => {
       expect(extractCleanMeaning('- từ chức')).toBe('từ chức');
       expect(extractCleanMeaning('* sa thải')).toBe('sa thải');
+    });
+
+    it('should truncate or clean long encyclopedic paragraphs so they do not overflow', () => {
+      const longText = 'tuyết và ngũ cốc từ nơi này sang nơi khác, với một số dạng cũng được sử dụng để đào. Đừng nhầm lẫn với một cái thuổng...';
+      const clean = extractCleanMeaning(longText);
+      expect(clean.length).toBeLessThanOrEqual(45);
+      expect(clean).not.toContain('Đừng nhầm lẫn với một cái thuổng');
     });
 
     it('should return fallback if empty string', () => {

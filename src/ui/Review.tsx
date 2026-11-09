@@ -520,7 +520,11 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
 
       <View style={styles.cardArea}>
         {effectiveExerciseType === 'flashcard' ? (
-          <>
+          <ScrollView
+            style={styles.flashcardOuterScroll}
+            contentContainerStyle={styles.flashcardOuterContent}
+            showsVerticalScrollIndicator={false}
+          >
             {/* Animated Swipe Flashcard Component (chỉ gạt ngang trái/phải) */}
             <Animated.View
               {...panResponder.panHandlers}
@@ -650,7 +654,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                 {revealedSideIndex > 0 ? 'Chạm vào thẻ để ẩn lại' : 'Chạm để xem nghĩa / mặt ẩn'}
               </Text>
             </TouchableOpacity>
-          </>
+          </ScrollView>
         ) : (
           <ScrollView
             style={styles.exerciseCardOuter}
@@ -1066,6 +1070,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 24
+  },
+  flashcardOuterScroll: {
+    flex: 1,
+    width: '100%'
+  },
+  flashcardOuterContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingBottom: 10
   },
   cardBox: {
     backgroundColor: '#FFFFFF',

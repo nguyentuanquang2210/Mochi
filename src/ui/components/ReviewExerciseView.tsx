@@ -18,6 +18,7 @@ import { TOEIC_MAP } from '../../data/toeicWordlist';
 import {
   extractCleanMeaning,
   extractExampleSentence,
+  extractMeanings,
   getWordFamily
 } from '../../domain/reviewExerciseUtils';
 import type { CardSummary, Rating } from '../../domain/types';
@@ -77,9 +78,12 @@ export function ReviewExerciseView({
   const targetWord = (sides[0] || card.front || '').trim();
   const coverImage = card.thumbnailUrl || card.imageUrl;
 
-  // Trích xuất nghĩa tiếng Việt gọn gàng
+  // Trích xuất nghĩa tiếng Việt cô đọng kèm các nghĩa khác nếu có
   const rawMeaning = sides[1] || card.back || '';
-  const cleanMeaning = extractCleanMeaning(rawMeaning);
+  const meaningData = extractMeanings(rawMeaning, targetWord);
+  const cleanMeaning = meaningData.primaryMeaning;
+  const otherMeanings = meaningData.otherMeanings;
+  const [showAllMeanings, setShowAllMeanings] = useState(false);
 
   // Trích xuất câu ví dụ nếu có (dòng bắt đầu bằng 📝)
   const exampleInfo = extractExampleSentence(card.content || '', targetWord);
@@ -122,6 +126,7 @@ export function ReviewExerciseView({
     setSpokenText(null);
     setIsRecording(false);
     setIsEvaluatingSpeech(false);
+    setShowAllMeanings(false);
     stopRecordingAndCleanup();
 
     // Xử lý đếm ngược che từ của dạng Memory Write
@@ -268,6 +273,38 @@ export function ReviewExerciseView({
         <Text style={styles.meaningPrompt}>
           {cleanMeaning}
         </Text>
+
+        {/* Nút dropdown mở rộng nếu từ có nhiều nghĩa khác */}
+        {otherMeanings.length > 0 && (
+          <View style={styles.meaningsDropdownWrapper}>
+            <TouchableOpacity
+              style={styles.meaningsDropdownBtn}
+              onPress={() => setShowAllMeanings(!showAllMeanings)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.meaningsDropdownBtnText}>
+                {showAllMeanings ? 'Thu gọn' : `+${otherMeanings.length} nghĩa khác`}
+              </Text>
+              <Feather
+                name={showAllMeanings ? 'chevron-up' : 'chevron-down'}
+                size={13}
+                color="#2563EB"
+                style={{ marginLeft: 3 }}
+              />
+            </TouchableOpacity>
+
+            {showAllMeanings && (
+              <View style={styles.meaningsDropdownList}>
+                {otherMeanings.map((m, idx) => (
+                  <View key={idx} style={styles.meaningDropdownItem}>
+                    <Text style={styles.meaningDropdownBullet}>•</Text>
+                    <Text style={styles.meaningDropdownText}>{m}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Ảnh minh họa nhỏ gọn nếu có */}
         {Boolean(coverImage) && (
@@ -505,13 +542,57 @@ const styles = StyleSheet.create({
     marginBottom: 16
   },
   meaningPrompt: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
     color: '#0F172A',
     textAlign: 'center',
-    lineHeight: 30,
-    marginBottom: 16,
+    lineHeight: 25,
+    marginBottom: 6,
     paddingHorizontal: 8
+  },
+  meaningsDropdownWrapper: {
+    alignItems: 'center',
+    marginBottom: 10
+  },
+  meaningsDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE'
+  },
+  meaningsDropdownBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2563EB'
+  },
+  meaningsDropdownList: {
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    maxWidth: '90%'
+  },
+  meaningDropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 2
+  },
+  meaningDropdownBullet: {
+    fontSize: 12,
+    color: '#64748B',
+    marginRight: 6
+  },
+  meaningDropdownText: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '500'
   },
   imageThumbWrapper: {
     width: 120,

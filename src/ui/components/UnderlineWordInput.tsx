@@ -122,6 +122,34 @@ export function UnderlineWordInput({
     };
   });
 
+  // Tự động tính toán kích cỡ slot và gạch chân theo độ dài từ để KHÔNG BAO GIỜ bị xuống dòng
+  const len = Math.max(1, targetChars.length);
+  let slotWidth = 20;
+  let slotGap = 6;
+  let fontSize = 20;
+  let underlineWidth = 18;
+  let underlineHeight = 2.5;
+
+  if (len > 12) {
+    slotWidth = 13;
+    slotGap = 2.5;
+    fontSize = 13;
+    underlineWidth = 11;
+    underlineHeight = 2;
+  } else if (len > 9) {
+    slotWidth = 15;
+    slotGap = 4;
+    fontSize = 15;
+    underlineWidth = 13;
+    underlineHeight = 2;
+  } else if (len > 6) {
+    slotWidth = 18;
+    slotGap = 5;
+    fontSize = 17;
+    underlineWidth = 16;
+    underlineHeight = 2.5;
+  }
+
   return (
     <TouchableWithoutFeedback onPress={handleCardPress}>
       <Animated.View
@@ -151,10 +179,10 @@ export function UnderlineWordInput({
         />
 
         {/* Khung hiển thị các chữ cái phía trên dấu gạch chân chuẩn theo ảnh mẫu */}
-        <View style={styles.slotsRow}>
+        <View style={[styles.slotsRow, { gap: slotGap }]}>
           {slots.map(slot => {
             if (slot.isSpace) {
-              return <View key={slot.id} style={styles.spaceSlot} />;
+              return <View key={slot.id} style={[styles.spaceSlot, { width: slotGap * 2 }]} />;
             }
 
             const isCorrectChar =
@@ -164,11 +192,12 @@ export function UnderlineWordInput({
             const isWrongChar = evaluation === 'incorrect' && !isCorrectChar && slot.isFilled;
 
             return (
-              <View key={slot.id} style={styles.slotWrapper}>
+              <View key={slot.id} style={[styles.slotWrapper, { width: slotWidth }]}>
                 {/* Chữ cái phía trên gạch chân */}
                 <Text
                   style={[
                     styles.slotLetter,
+                    { fontSize, minHeight: fontSize + 6 },
                     slot.isFilled && styles.slotLetterFilled,
                     evaluation === 'correct' && styles.slotLetterCorrect,
                     isWrongChar && styles.slotLetterWrong,
@@ -182,6 +211,7 @@ export function UnderlineWordInput({
                 <View
                   style={[
                     styles.underline,
+                    { width: underlineWidth, height: underlineHeight },
                     slot.isFilled && styles.underlineFilled,
                     slot.isActive && styles.underlineActive,
                     evaluation === 'correct' && styles.underlineCorrect,
@@ -231,13 +261,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    paddingVertical: 20,
-    paddingHorizontal: 22,
+    paddingVertical: 18,
+    paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 90,
-    minWidth: 240,
-    maxWidth: '92%',
+    minHeight: 84,
+    minWidth: 160,
+    maxWidth: '96%',
     alignSelf: 'center',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -266,8 +296,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 6
+    flexWrap: 'nowrap',
+    paddingHorizontal: 4
   },
   slotWrapper: {
     alignItems: 'center',

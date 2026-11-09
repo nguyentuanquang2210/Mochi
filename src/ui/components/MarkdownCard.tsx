@@ -24,8 +24,35 @@ export function MarkdownCard({ content, isRevealed = true, isTitle = false }: Ma
     const line = lines[lineIndex];
     const trimmed = line.trim();
 
-    // Nhận diện câu ví dụ tiếng Anh bắt đầu bằng 📝 -> Chuyển thành InteractiveSentence có chạm tra từ/cụm từ
-    if (trimmed.startsWith('📝')) {
+    // 1. Nhận diện mục "- Giải thích:"
+    if (trimmed.startsWith('- Giải thích:') || trimmed.startsWith('Giải thích:')) {
+      const explainText = trimmed.replace(/^-?\s*giải thích\s*:\s*/i, '');
+      renderedElements.push(
+        <View key={`exp-${lineIndex}`} style={styles.explanationBox}>
+          <Text style={styles.explanationTitle}>💡 Giải thích: </Text>
+          <Text style={styles.explanationBody}>{explainText}</Text>
+        </View>
+      );
+      continue;
+    }
+
+    // 2. Nhận diện mục "- Nghĩa:"
+    if (trimmed.startsWith('- Nghĩa:') || trimmed.startsWith('Nghĩa:')) {
+      const meaningContent = trimmed.replace(/^-?\s*nghĩa\s*:\s*/i, '').trim();
+      renderedElements.push(
+        <View key={`nghia-${lineIndex}`} style={styles.meaningHeaderRow}>
+          <Text style={styles.meaningHeaderTitle}>📖 Nghĩa: </Text>
+          {meaningContent ? (
+            <Text style={styles.meaningHeaderText}>{meaningContent}</Text>
+          ) : null}
+        </View>
+      );
+      continue;
+    }
+
+    // 3. Nhận diện câu ví dụ tiếng Anh bắt đầu bằng 📝 -> Chuyển thành InteractiveSentence có chạm tra từ/cụm từ
+    if (trimmed.startsWith('📝') || trimmed.startsWith('- Ví dụ: 📝') || trimmed.startsWith('- Ví dụ:')) {
+      const cleanedSentence = trimmed.replace(/^-?\s*ví dụ\s*:\s*/i, '').trim();
       let translation: string | null = null;
       if (lineIndex + 1 < lines.length) {
         const nextTrimmed = lines[lineIndex + 1].trim();
@@ -38,7 +65,7 @@ export function MarkdownCard({ content, isRevealed = true, isTitle = false }: Ma
       renderedElements.push(
         <InteractiveSentence
           key={`ex-${lineIndex}`}
-          sentence={trimmed}
+          sentence={cleanedSentence.startsWith('📝') ? cleanedSentence : `📝 ${cleanedSentence}`}
           translation={translation}
         />
       );
@@ -179,6 +206,43 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingHorizontal: 6,
     borderRadius: 4
+  },
+  meaningHeaderRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: 6
+  },
+  meaningHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B'
+  },
+  meaningHeaderText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2563EB'
+  },
+  explanationBox: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginVertical: 4
+  },
+  explanationTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748B'
+  },
+  explanationBody: {
+    fontSize: 13.5,
+    color: '#475569',
+    lineHeight: 19
   }
 });
 

@@ -1,12 +1,109 @@
 import { TOEIC_MAP } from '../data/toeicWordlist';
 
+export interface ExtractedMeanings {
+  primaryMeaning: string;
+  otherMeanings: string[];
+}
+
+/**
+ * Trích xuất các nét nghĩa tiếng Việt cô đọng từ nội dung thẻ (bỏ qua giải thích dài và câu ví dụ)
+ * Hỗ trợ tách nghĩa chính và các nghĩa phụ để hiển thị dạng dropdown gọn gàng không tràn màn hình
+ */
+export function extractMeanings(content: string, targetWord?: string): ExtractedMeanings {
+  if (!content) {
+    if (targetWord && TOEIC_MAP.has(targetWord.toLowerCase().trim())) {
+      const t = TOEIC_MAP.get(targetWord.toLowerCase().trim())!;
+      return {
+        primaryMeaning: t.meaningVi + (t.pos ? ` (${t.pos})` : ''),
+        otherMeanings: []
+      };
+    }
+    return { primaryMeaning: 'Nghĩa từ vựng', otherMeanings: [] };
+  }
+
+  const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // 1. Kiểm tra format chuẩn "- Nghĩa: ..."
+  const nghiaLineIndex = lines.findIndex(l => /^-?\s*nghĩa\s*:/i.test(l));
+  if (nghiaLineIndex !== -1) {
+    const rawNghiaHeader = lines[nghiaLineIndex].replace(/^-?\s*nghĩa\s*:\s*/i, '').trim();
+    const collected: string[] = [];
+
+    if (rawNghiaHeader) {
+      // Có thể là "- Nghĩa: cái xẻng (n), xúc bằng xẻng (v)"
+      const parts = rawNghiaHeader.split(/[,;]/).map(p => p.trim()).filter(Boolean);
+      collected.push(...parts);
+    }
+
+    // Quét các dòng danh sách tiếp theo: "1. cái xẻng (n)", "2. ..."
+    for (let i = nghiaLineIndex + 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.startsWith('- ') || line.startsWith('📝')) break; // Sang mục khác (Giải thích, Ví dụ)
+      const cleanLine = line.replace(/^[0-9.]+\s*/, '').replace(/^[-*•]\s*/, '').trim();
+      if (cleanLine) {
+        collected.push(cleanLine);
+      }
+    }
+
+    if (collected.length > 0) {
+      return {
+        primaryMeaning: collected[0],
+        otherMeanings: collected.slice(1)
+      };
+    }
+  }
+
+  // 2. Kiểm tra format danh sách số "1. (noun) ... \n 2. (verb) ..."
+  const numberedMeanings: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith('📝') || line.startsWith('(')) continue;
+    if (/^[0-9]+\.\s*/.test(line)) {
+      const cleanLine = line.replace(/^[0-9]+\.\s*/, '').trim();
+      if (cleanLine) numberedMeanings.push(cleanLine);
+    }
+  }
+  if (numberedMeanings.length > 0) {
+    return {
+      primaryMeaning: numberedMeanings[0],
+      otherMeanings: numberedMeanings.slice(1)
+    };
+  }
+
+  // 3. Nếu là thẻ cũ hoặc đoạn văn dài:
+  const firstLine = lines.find(l => !l.startsWith('📝') && !l.startsWith('(') && !l.startsWith('- Giải thích') && !l.startsWith('- Ví dụ')) || lines[0];
+  let cleaned = firstLine.replace(/^[0-9.]+\s*/, '').replace(/^[-*•]\s*/, '').trim();
+
+  // Nếu đoạn văn giải thích quá dài (như ở thẻ shovel "tuyết và ngũ cốc từ nơi này sang nơi khác..."):
+  if (cleaned.length > 45) {
+    // Ưu tiên kiểm tra TOEIC_MAP trước
+    if (targetWord) {
+      const t = TOEIC_MAP.get(targetWord.toLowerCase().trim());
+      if (t) {
+        return {
+          primaryMeaning: t.meaningVi + (t.pos ? ` (${t.pos})` : ''),
+          otherMeanings: []
+        };
+      }
+    }
+
+    // Cắt vế đầu tiên trước dấu chấm/phẩy dài để không tràn màn hình
+    const firstSentence = cleaned.split(/[.;]/)[0].trim();
+    if (firstSentence && firstSentence.length <= 40) {
+      cleaned = firstSentence;
+    } else {
+      cleaned = cleaned.slice(0, 38).trim() + '...';
+    }
+  }
+
+  return {
+    primaryMeaning: cleaned || 'Nghĩa từ vựng',
+    otherMeanings: []
+  };
+}
+
 // Trích xuất nghĩa tiếng Việt ngắn gọn, kèm từ loại nếu có
-export function extractCleanMeaning(text: string): string {
-  if (!text) return 'Nghĩa từ vựng';
-  const firstLine = text.split('\n')[0].trim();
-  // Loại bỏ các tiền tố như "1. ", "- "
-  const cleaned = firstLine.replace(/^[0-9.]+\s*/, '').replace(/^[-*]\s*/, '');
-  return cleaned || firstLine;
+export function extractCleanMeaning(text: string, targetWord?: string): string {
+  return extractMeanings(text, targetWord).primaryMeaning;
 }
 
 // Trích xuất câu ví dụ và thay từ vựng bằng gạch trống ______
@@ -83,3 +180,4 @@ export function getWordFamily(
     { pos: 'adj', word: `${clean}ive`, meaning: 'dạng tính từ' }
   ];
 }
+
