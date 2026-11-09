@@ -4,7 +4,7 @@
  * Endpoint: https://www.dictionaryapi.com/api/v3/references/learners/json/{word}?key={KEY}
  */
 
-import { WordSense } from './types';
+import { WordSense, normalizeToStandardIpa } from './types';
 
 export interface MwParsedResult {
   word: string;
@@ -217,7 +217,7 @@ export class MerriamWebsterApi {
 
       return {
         word,
-        ipaUs,
+        ipaUs: normalizeToStandardIpa(ipaUs),
         audioUsUrl,
         inflections,
         senses,
@@ -229,3 +229,4 @@ export class MerriamWebsterApi {
     }
   }
 }
+

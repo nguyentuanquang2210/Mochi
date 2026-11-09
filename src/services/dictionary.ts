@@ -1,9 +1,9 @@
 import { database } from '../data/database';
 import { TOEIC_MAP, TOEIC_WORDLIST, ToeicWordEntry } from '../data/toeicWordlist';
-import { AggregatedWordEntry, WordSense, DictionarySource } from './dictionary/types';
+import { AggregatedWordEntry, WordSense, DictionarySource, normalizeToStandardIpa } from './dictionary/types';
 import { DictionaryAggregator } from './dictionary/dictionaryAggregator';
 
-export { AggregatedWordEntry, WordSense, DictionarySource };
+export { AggregatedWordEntry, WordSense, DictionarySource, normalizeToStandardIpa };
 
 export interface WordMeaningItem {
   partOfSpeech: string;       // noun, verb, adjective, adverb...
@@ -520,14 +520,11 @@ class DictionaryServiceImpl {
   }
 
   /**
-   * Định dạng chuỗi IPA chuẩn với dấu gạch chéo /.../
+   * Định dạng chuỗi IPA chuẩn Oxford / Cambridge dành cho người học tiếng Anh:
+   * Loại bỏ các ký tự phiên âm hẹp lạ (như chữ r ngược ɹ -> r, l tối ɫ -> l, g script ɡ -> g, tie bars...)
    */
-  private formatIpa(raw: string | null | undefined): string | null {
-    if (!raw) return null;
-    let cleaned = raw.trim();
-    if (!cleaned) return null;
-    cleaned = cleaned.replace(/^\/+|\/+$/g, '').trim();
-    return cleaned ? `/${cleaned}/` : null;
+  formatIpa(raw: string | null | undefined): string | null {
+    return normalizeToStandardIpa(raw);
   }
 
   /**

@@ -50,3 +50,57 @@ export interface AggregatedWordEntry {
   toeicRecommendedSenseId?: string;   // ID của nghĩa thông dụng nhất trong TOEIC
   cachedAt: number;                   // Thời gian cache (timestamp)
 }
+
+/**
+ * Chuẩn hóa phiên âm IPA về bảng ký hiệu quốc tế chuẩn Oxford / Cambridge thân thuộc với người học:
+ * - Thay thế ký tự r ngược chuyên ngành ngôn ngữ học (turned-r: ɹ, ɻ, ɾ) thành chữ r thông thường
+ * - Thay thế l tối (velarized-l: ɫ) thành chữ l thông thường
+ * - Thay thế g script (ɡ) thành g thông thường
+ * - Thay thế nguyên âm hẹp của Wiktionary (ᵻ -> ɪ, ᵿ -> ʊ)
+ * - Bỏ dấu nối âm tie-bars (t͡ʃ -> tʃ, d͡ʒ -> dʒ)
+ * - Chuẩn hóa (ɹ) -> r, bỏ dấu gạch nối âm tiết kiểu Merriam-Webster
+ * - Đảm bảo bao bọc bởi /.../
+ */
+export function normalizeToStandardIpa(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let s = raw.trim();
+  if (!s) return null;
+
+  // Bỏ các dấu bao ngoài: [ ... ], / ... /, \ ... \
+  s = s.replace(/^[\[\/\\ ]+|[\]\/\\ ]+$/g, '').trim();
+
+  s = s
+    // 1. Chữ r ngược (turned r): ɹ, ɻ, ɾ -> r (người học không còn thấy chữ ɹ lạ mắt)
+    .replace(/[ɹɻɾ]/g, 'r')
+    .replace(/\(ɹ\)/g, 'r')
+    .replace(/\(r\)/g, 'r')
+
+    // 2. Chữ l tối: ɫ -> l
+    .replace(/ɫ/g, 'l')
+
+    // 3. Chữ g script: ɡ -> g
+    .replace(/ɡ/g, 'g')
+
+    // 4. Nguyên âm rút gọn Wiktionary: ᵻ -> ɪ, ᵿ -> ʊ
+    .replace(/ᵻ/g, 'ɪ')
+    .replace(/ᵿ/g, 'ʊ')
+
+    // 5. Tie bars nối âm: t͡ʃ -> tʃ, d͡ʒ -> dʒ
+    .replace(/[͜͡]/g, '')
+
+    // 6. Ký hiệu phụ ngữ điệu siêu âm: ʷ, ʲ, ʰ, ˤ, ˀ
+    .replace(/[ʷʲʰˤˀ]/g, '')
+
+    // 7. Bỏ dấu gạch ngang phân tách âm tiết kiểu Merriam-Webster (\ə-ˈdres\ -> \əˈdres\)
+    .replace(/-/g, '')
+
+    // 8. Bỏ dấu gạch chéo ngược
+    .replace(/\\/g, '')
+
+    // 9. Chuẩn hóa khoảng trắng
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return s ? `/${s}/` : null;
+}
+

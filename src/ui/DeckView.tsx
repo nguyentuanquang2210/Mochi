@@ -19,7 +19,7 @@ import { CardDetailBottomSheet } from './components/CardDetailBottomSheet';
 import type { CardSummary, Deck } from '../domain/types';
 import { CardRepository, DeckRepository } from '../data/repositories';
 import { TOEIC_MAP } from '../data/toeicWordlist';
-import { DictionaryService } from '../services/dictionary';
+import { DictionaryService, normalizeToStandardIpa } from '../services/dictionary';
 
 interface DeckViewProps {
   deck: Deck;
@@ -158,12 +158,12 @@ export function DeckView({
   // Helper lấy phiên âm IPA tối ưu nhất của thẻ và tự động hoàn thiện nếu chưa có
   const getCardIpa = (card: CardSummary) => {
     if (card.ipaUs || card.ipaUk) {
-      return card.ipaUs || card.ipaUk;
+      return normalizeToStandardIpa(card.ipaUs || card.ipaUk);
     }
     const clean = card.front.trim().toLowerCase();
     const toeic = TOEIC_MAP.get(clean);
     if (toeic?.ipaUs || toeic?.ipaUk) {
-      return toeic.ipaUs || toeic.ipaUk;
+      return normalizeToStandardIpa(toeic.ipaUs || toeic.ipaUk);
     }
     // Tự động tra cứu và lưu bổ sung vào CSDL cho các thẻ cũ
     DictionaryService.lookupWord(clean).then(info => {

@@ -5,7 +5,7 @@
  * License: Wiktionary / Creative Commons Attribution-ShareAlike (CC BY-SA)
  */
 
-import { WordSense } from './types';
+import { WordSense, normalizeToStandardIpa } from './types';
 
 export interface FreeDictionaryParsedResult {
   word: string;
@@ -157,8 +157,8 @@ export class FreeDictionaryApi {
 
       return {
         word,
-        ipaUs,
-        ipaUk,
+        ipaUs: normalizeToStandardIpa(ipaUs),
+        ipaUk: normalizeToStandardIpa(ipaUk),
         audioUsUrl,
         audioUkUrl,
         inflections,
@@ -244,8 +244,8 @@ export class FreeDictionaryApi {
 
       return {
         word,
-        ipaUs,
-        ipaUk,
+        ipaUs: normalizeToStandardIpa(ipaUs),
+        ipaUk: normalizeToStandardIpa(ipaUk),
         audioUsUrl,
         audioUkUrl,
         inflections: [],
@@ -258,3 +258,4 @@ export class FreeDictionaryApi {
     }
   }
 }
+

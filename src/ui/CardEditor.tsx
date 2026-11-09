@@ -84,8 +84,8 @@ export function CardEditor({
         if (val.isValid) {
           const dictInfo = await DictionaryService.lookupWord(val.cleanWord);
           if (dictInfo.verified) {
-            ipaUs = dictInfo.ipaUs || null;
-            ipaUk = dictInfo.ipaUk || null;
+            ipaUs = DictionaryService.formatIpa(dictInfo.ipaUs) || null;
+            ipaUk = DictionaryService.formatIpa(dictInfo.ipaUk) || null;
           }
         }
       }

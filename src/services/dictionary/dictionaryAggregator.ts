@@ -4,7 +4,7 @@
  * từ 2 nguồn: Merriam-Webster Learner's Dictionary và Free Dictionary API (Wiktionary)
  */
 
-import { AggregatedWordEntry, DictionarySource, DomainCategory, ToeicPriority, WordSense } from './types';
+import { AggregatedWordEntry, DictionarySource, DomainCategory, ToeicPriority, WordSense, normalizeToStandardIpa } from './types';
 import { MerriamWebsterApi } from './merriamWebsterApi';
 import { FreeDictionaryApi } from './freeDictionaryApi';
 import { TOEIC_MAP } from '../../data/toeicWordlist';
@@ -371,13 +371,13 @@ export class DictionaryAggregator {
         sourceAttribution: 'TOEIC Curated Vocabulary Database'
       }));
 
-      // Lấy phiên âm từ TOEIC_MAP
+      // Lấy phiên âm chuẩn Oxford/Cambridge từ TOEIC_MAP
       const toeic = TOEIC_MAP.get(word);
 
       return {
         word,
-        ipaUs: toeic?.ipaUs || null,
-        ipaUk: toeic?.ipaUk || toeic?.ipaUs || null,
+        ipaUs: normalizeToStandardIpa(toeic?.ipaUs),
+        ipaUk: normalizeToStandardIpa(toeic?.ipaUk || toeic?.ipaUs),
         sources: ['toeic_curated'],
         senses,
         toeicRecommendedSenseId: senses[0]?.id,
@@ -398,9 +398,14 @@ export class DictionaryAggregator {
     if (mwData) sources.push('merriam_webster');
     if (fdData) sources.push('free_dictionary');
 
-    // Phiên âm: Ưu tiên US của Merriam-Webster, UK của Free Dictionary
-    const ipaUs = mwData?.ipaUs || fdData?.ipaUs || TOEIC_MAP.get(word)?.ipaUs || null;
-    const ipaUk = fdData?.ipaUk || mwData?.ipaUs || TOEIC_MAP.get(word)?.ipaUk || null;
+    // Phiên âm: Ưu tiên bộ từ điển TOEIC chuẩn sẵn có trong app (Oxford/Cambridge sạch, không chứa ký tự lạ),
+    // sau đó đến Merriam-Webster và Free Dictionary, tất cả đều được chuẩn hóa qua normalizeToStandardIpa
+    const toeic = TOEIC_MAP.get(word);
+    const rawIpaUs = toeic?.ipaUs || mwData?.ipaUs || fdData?.ipaUs || null;
+    const rawIpaUk = toeic?.ipaUk || fdData?.ipaUk || mwData?.ipaUs || null;
+
+    const ipaUs = normalizeToStandardIpa(rawIpaUs);
+    const ipaUk = normalizeToStandardIpa(rawIpaUk || rawIpaUs);
     const audioUsUrl = mwData?.audioUsUrl || fdData?.audioUsUrl || null;
     const audioUkUrl = fdData?.audioUkUrl || null;
 

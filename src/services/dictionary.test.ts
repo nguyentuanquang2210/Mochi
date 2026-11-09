@@ -92,6 +92,20 @@ describe('DictionaryService', () => {
     expect(singleTrans.toLowerCase()).toContain('vào');
   });
 
+  it('should normalize non-standard narrow linguistic IPA to familiar learner IPA', () => {
+    // Turned r: ɹ -> r
+    expect(DictionaryService.formatIpa('/əˈdɹɛs/')).toBe('/əˈdrɛs/');
+    expect(DictionaryService.formatIpa('/ˈædɹɛs/')).toBe('/ˈædrɛs/');
+    // (ɹ) -> r
+    expect(DictionaryService.formatIpa('/ˈflaɪə(ɹ)/')).toBe('/ˈflaɪər/');
+    // Turned r in present
+    expect(DictionaryService.formatIpa('/ˈpɹɛz.ənt/')).toBe('/ˈprɛz.ənt/');
+    // Tie bars
+    expect(DictionaryService.formatIpa('/t͡ʃɑːd͡ʒ/')).toBe('/tʃɑːdʒ/');
+    // Merriam-Webster syllable hyphens and backslashes
+    expect(DictionaryService.formatIpa('\\ə-ˈdres\\')).toBe('/əˈdres/');
+  });
+
   describe('Multi-Sense Aggregation (Merriam-Webster & Free Dictionary)', () => {
     it('should aggregate multi-senses for "address" with distinct noun and verb senses', async () => {
       const entry = await DictionaryService.lookupAggregatedWord('address');

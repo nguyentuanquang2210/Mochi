@@ -23,7 +23,7 @@ import { VoicePracticeModal } from './components/VoicePracticeModal';
 import { ReviewExerciseView, ExerciseType } from './components/ReviewExerciseView';
 import { SpeechService } from '../services/speech';
 import { TOEIC_MAP } from '../data/toeicWordlist';
-import { DictionaryService } from '../services/dictionary';
+import { DictionaryService, normalizeToStandardIpa } from '../services/dictionary';
 import type { CardSummary, Deck, FsrsState, Rating } from '../domain/types';
 import { CardRepository } from '../data/repositories';
 
@@ -179,15 +179,15 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
       : (currentCard.ipaUs || currentCard.ipaUk || toeic?.ipaUs || toeic?.ipaUk);
 
     if (existingIpa) {
-      setLiveCardIpa(existingIpa);
+      setLiveCardIpa(normalizeToStandardIpa(existingIpa));
     } else {
       setLiveCardIpa(null);
       // Tự động tra cứu và bổ sung IPA ngay lập tức cho các thẻ chưa có IPA
       DictionaryService.lookupWord(clean).then(info => {
         if (info.verified && (info.ipaUs || info.ipaUk)) {
           const fetched = userAccent === 'en-GB' ? (info.ipaUk || info.ipaUs) : (info.ipaUs || info.ipaUk);
-          setLiveCardIpa(fetched || null);
-          CardRepository.updateIpa(currentCard.id, info.ipaUs || null, info.ipaUk || null).catch(() => {});
+          setLiveCardIpa(normalizeToStandardIpa(fetched));
+          CardRepository.updateIpa(currentCard.id, normalizeToStandardIpa(info.ipaUs) || null, normalizeToStandardIpa(info.ipaUk) || null).catch(() => {});
         }
       }).catch(() => {});
     }

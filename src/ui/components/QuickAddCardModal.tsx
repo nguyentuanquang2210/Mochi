@@ -18,7 +18,7 @@ import { SpeakerButton } from './SpeakerButton';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
 import { ImagePickerSection } from './ImagePickerSection';
 import { MultiSenseSelector } from './MultiSenseSelector';
-import { DictionaryService, SuggestionItem, AggregatedWordEntry, WordSense } from '../../services/dictionary';
+import { DictionaryService, SuggestionItem, AggregatedWordEntry, WordSense, normalizeToStandardIpa } from '../../services/dictionary';
 import { ImageSearchService } from '../../services/imageSearch';
 import { CardRepository } from '../../data/repositories';
 import { TOEIC_MAP } from '../../data/toeicWordlist';
@@ -128,8 +128,8 @@ export function QuickAddCardModal({
       // Kiểm tra ngay trong kho từ vựng TOEIC cục bộ (phản hồi tức thì 0ms)
       const toeicMatch = TOEIC_MAP.get(lower);
       if (toeicMatch) {
-        setSelectedIpaUs(toeicMatch.ipaUs || null);
-        setSelectedIpaUk(toeicMatch.ipaUk || toeicMatch.ipaUs || null);
+        setSelectedIpaUs(normalizeToStandardIpa(toeicMatch.ipaUs));
+        setSelectedIpaUk(normalizeToStandardIpa(toeicMatch.ipaUk || toeicMatch.ipaUs));
       } else {
         setSelectedIpaUs(null);
         setSelectedIpaUk(null);
@@ -148,8 +148,8 @@ export function QuickAddCardModal({
             if (!toeicMatch && DictionaryService.validateSingleWord(trimmed).isValid) {
               const info = await DictionaryService.lookupWord(trimmed);
               if (info.verified && (info.ipaUs || info.ipaUk)) {
-                setSelectedIpaUs(info.ipaUs || null);
-                setSelectedIpaUk(info.ipaUk || null);
+                setSelectedIpaUs(normalizeToStandardIpa(info.ipaUs));
+                setSelectedIpaUk(normalizeToStandardIpa(info.ipaUk));
               }
             }
 
@@ -171,8 +171,8 @@ export function QuickAddCardModal({
                 if (entry && entry.senses && entry.senses.length > 0) {
                   setAggregatedEntry(entry);
                   if (entry.ipaUs || entry.ipaUk) {
-                    setSelectedIpaUs(entry.ipaUs || null);
-                    setSelectedIpaUk(entry.ipaUk || null);
+                    setSelectedIpaUs(normalizeToStandardIpa(entry.ipaUs));
+                    setSelectedIpaUk(normalizeToStandardIpa(entry.ipaUk));
                   }
                   // Nếu mặt ẩn chưa có nội dung, tự động gợi ý các senses ưu tiên
                   setSides(prev => {
@@ -277,9 +277,9 @@ export function QuickAddCardModal({
       return next;
     });
 
-    const ipa = item.ipaUs || item.ipa || item.ipaUk || null;
+    const ipa = normalizeToStandardIpa(item.ipaUs || item.ipa || item.ipaUk || null);
     setSelectedIpaUs(ipa);
-    setSelectedIpaUk(item.ipaUk || ipa);
+    setSelectedIpaUk(normalizeToStandardIpa(item.ipaUk) || ipa);
     setShowSuggestions(false);
     setSuggestions([]);
 
@@ -287,8 +287,8 @@ export function QuickAddCardModal({
     DictionaryService.lookupAggregatedWord(item.word).then(entry => {
       setAggregatedEntry(entry);
       if (entry.ipaUs || entry.ipaUk) {
-        setSelectedIpaUs(entry.ipaUs || null);
-        setSelectedIpaUk(entry.ipaUk || null);
+        setSelectedIpaUs(normalizeToStandardIpa(entry.ipaUs));
+        setSelectedIpaUk(normalizeToStandardIpa(entry.ipaUk));
       }
 
       if (entry.senses && entry.senses.length > 0) {
