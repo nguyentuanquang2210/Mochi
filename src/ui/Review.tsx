@@ -4,12 +4,14 @@ import {
   Animated,
   Image,
   LayoutAnimation,
+  Modal,
   PanResponder,
   Platform,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   UIManager,
   View
 } from 'react-native';
@@ -18,11 +20,35 @@ import { CardOptionsMenu } from './components/CardOptionsMenu';
 import { MarkdownCard } from './components/MarkdownCard';
 import { SpeakerButton, lastSpeakerPressTimestamp } from './components/SpeakerButton';
 import { VoicePracticeModal } from './components/VoicePracticeModal';
+import { ReviewExerciseView, ExerciseType } from './components/ReviewExerciseView';
 import { SpeechService } from '../services/speech';
 import { TOEIC_MAP } from '../data/toeicWordlist';
 import { DictionaryService } from '../services/dictionary';
 import type { CardSummary, Deck, FsrsState, Rating } from '../domain/types';
 import { CardRepository } from '../data/repositories';
+
+export type PracticeMode = 'mixed' | ExerciseType;
+
+export const PRACTICE_MODES: { id: PracticeMode; label: string; icon: string; desc: string }[] = [
+  { id: 'mixed', label: 'Trộn đa dạng (Mixed)', icon: 'shuffle', desc: 'Luân phiên 6 hình thức bài tập theo từng thẻ (Khuyên dùng)' },
+  { id: 'fill_in_blank', label: 'Điền từ (Gạch chân)', icon: 'edit-3', desc: 'Nhìn nghĩa tiếng Việt → Viết từ tiếng Anh' },
+  { id: 'memory_write', label: 'Nhớ & viết lại', icon: 'zap', desc: 'Xem từ 2s rồi che đi → Viết lại bằng trí nhớ' },
+  { id: 'listening', label: 'Luyện nghe TOEIC', icon: 'headphones', desc: 'Nghe phát âm mà không nhìn chữ → Điền từ' },
+  { id: 'speaking', label: 'Luyện phát âm', icon: 'mic', desc: 'Nhìn từ → Tự đọc to vào micro' },
+  { id: 'sentence_cloze', label: 'Điền từ vào câu', icon: 'file-text', desc: 'Điền từ vào chỗ trống trong ngữ cảnh' },
+  { id: 'word_family', label: 'Họ từ (Word Form)', icon: 'layers', desc: 'Biến thể từ loại: Danh, Động, Tính, Trạng từ' },
+  { id: 'flashcard', label: 'Lật thẻ truyền thống', icon: 'copy', desc: 'Mặt trước / Mặt sau dạng flashcard' },
+];
+
+const MIXED_CYCLE: ExerciseType[] = [
+  'fill_in_blank',
+  'listening',
+  'sentence_cloze',
+  'speaking',
+  'memory_write',
+  'word_family',
+  'flashcard'
+];
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -54,6 +80,8 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const [loading, setLoading] = useState(true);
   const [showCardMenu, setShowCardMenu] = useState(false);
   const [showVoicePractice, setShowVoicePractice] = useState(false);
+  const [selectedPracticeMode, setSelectedPracticeMode] = useState<PracticeMode>('mixed');
+  const [showModeModal, setShowModeModal] = useState(false);
 
   // Animation values for swipe physics and hidden side drop
   const pan = useRef(new Animated.ValueXY()).current;
@@ -129,6 +157,11 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const currentItem = queue[currentIndex] || null;
   const currentCard = currentItem?.card || null;
   const sides = currentCard ? currentCard.sides : [];
+
+  const effectiveExerciseType: ExerciseType =
+    selectedPracticeMode === 'mixed'
+      ? MIXED_CYCLE[currentIndex % MIXED_CYCLE.length]
+      : selectedPracticeMode;
 
   // Lấy và tự động bổ sung phiên âm IPA cho thẻ hiện tại dựa trên Accent người dùng đã chọn
   const userAccent = SpeechService.getSettings().accent;
@@ -460,142 +493,182 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
         <View style={[styles.progressBar, { width: `${progressPercent}%` }]} />
       </View>
 
-      {/* Sub-header: Deck indicator */}
-      <View style={styles.deckIndicator}>
-        <Ionicons name="folder-sharp" size={15} color="#666666" style={{ marginRight: 6 }} />
-        <Text style={styles.deckIndicatorText}>{deck?.name || 'Inbox'}</Text>
+      {/* Sub-header: Deck indicator & Practice Mode Pill */}
+      <View style={styles.subHeaderRow}>
+        <View style={styles.deckIndicator}>
+          <Ionicons name="folder-sharp" size={14} color="#666666" style={{ marginRight: 5 }} />
+          <Text style={styles.deckIndicatorText}>{deck?.name || 'Inbox'}</Text>
+        </View>
+
+        <TouchableOpacity
+          style={styles.practiceModePill}
+          onPress={() => setShowModeModal(true)}
+          activeOpacity={0.7}
+        >
+          <Feather
+            name={PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.icon as any || 'shuffle'}
+            size={12}
+            color="#2563EB"
+            style={{ marginRight: 5 }}
+          />
+          <Text style={styles.practiceModePillText}>
+            {PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.label || 'Ôn tập'}
+          </Text>
+          <Feather name="chevron-down" size={12} color="#64748B" style={{ marginLeft: 3 }} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.cardArea}>
-        {/* Animated Swipe Flashcard Component (chỉ gạt ngang trái/phải) */}
-        <Animated.View
-          {...panResponder.panHandlers}
-          style={[
-            styles.cardBox,
-            {
-              transform: [
-                { translateX: pan.x },
-                { rotate }
-              ],
-              borderColor: cardBorderColor,
-              borderWidth: 1.5
-            }
-          ]}
-        >
-          {/* Light Green Checkmark badge on top left when swiping right (Image 3) */}
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.cornerBadgeLeft,
-              { opacity: greenBadgeOpacity }
-            ]}
-          >
-            <Feather name="check" size={16} color="#3E7D48" />
-          </Animated.View>
-
-          {/* Light Red 'X' badge on top right when swiping left (Image 2) */}
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.cornerBadgeRight,
-              { opacity: redBadgeOpacity }
-            ]}
-          >
-            <Feather name="x" size={15} color="#8A4A45" />
-          </Animated.View>
-
-          {/* Card status badge & Speaker button phát âm từ lập tức */}
-          <View style={styles.badgeRow}>
-            <View style={styles.badgeLabelContainer}>
-              <Feather name="circle" size={10} color="#999999" style={{ marginRight: 5 }} />
-              <Text style={styles.badgeLabel}>
-                {currentCard.isNew ? 'THẺ MỚI' : 'ÔN TẬP'}
-              </Text>
-            </View>
-
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity
-                style={styles.micPracticeBtn}
-                onPress={() => setShowVoicePractice(true)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Feather name="mic" size={17} color="#2563EB" />
-              </TouchableOpacity>
-
-              <SpeakerButton
-                text={sides[0] || currentCard.front}
-                size={19}
-                color="#4B5563"
-                activeColor="#2563EB"
-              />
-            </View>
-          </View>
-
-          <TouchableOpacity
-            activeOpacity={0.95}
-            onPress={handleToggleReveal}
-            style={styles.cardInnerTouchable}
-          >
-            {/* Front content */}
-            <View style={styles.sideContent}>
-              {Boolean(currentCard.thumbnailUrl || currentCard.imageUrl) && (
-                <View style={styles.cardFrontCoverWrapper}>
-                  <Image
-                    source={{ uri: (currentCard.thumbnailUrl || currentCard.imageUrl) as string }}
-                    style={styles.cardFrontCover}
-                    resizeMode="contain"
-                  />
-                </View>
-              )}
-              <MarkdownCard content={sides[0] || currentCard.front} isRevealed={revealedSideIndex > 0} isTitle />
-              {liveCardIpa ? (
-                <Text style={styles.frontIpaText}>{liveCardIpa}</Text>
-              ) : null}
-            </View>
-
-            {/* Revealed Hidden Sides with smooth drop animation */}
-            {revealedSideIndex > 0 && (
+        {effectiveExerciseType === 'flashcard' ? (
+          <>
+            {/* Animated Swipe Flashcard Component (chỉ gạt ngang trái/phải) */}
+            <Animated.View
+              {...panResponder.panHandlers}
+              style={[
+                styles.cardBox,
+                {
+                  transform: [
+                    { translateX: pan.x },
+                    { rotate }
+                  ],
+                  borderColor: cardBorderColor,
+                  borderWidth: 1.5
+                }
+              ]}
+            >
+              {/* Light Green Checkmark badge on top left when swiping right (Image 3) */}
               <Animated.View
+                pointerEvents="none"
                 style={[
-                  styles.revealedSection,
-                  {
-                    opacity: dropAnim,
-                    transform: [
-                      {
-                        translateY: dropAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-10, 0]
-                        })
-                      }
-                    ]
-                  }
+                  styles.cornerBadgeLeft,
+                  { opacity: greenBadgeOpacity }
                 ]}
               >
-                <View style={styles.dashedSeparator} />
-                {sides.slice(1, revealedSideIndex + 1).map((sideText, idx) => (
-                  <View key={idx} style={{ marginTop: idx > 0 ? 12 : 0 }}>
-                    {idx > 0 && <View style={styles.dashedSeparator} />}
-                    <MarkdownCard content={sideText} isRevealed={true} />
-                  </View>
-                ))}
+                <Feather name="check" size={16} color="#3E7D48" />
               </Animated.View>
-            )}
-          </TouchableOpacity>
-        </Animated.View>
 
-        {/* Tap to reveal / hide prompt */}
-        <TouchableOpacity style={styles.tapPrompt} onPress={handleToggleReveal}>
-          <Ionicons
-            name={revealedSideIndex > 0 ? 'eye-off-outline' : 'hand-left-outline'}
-            size={16}
-            color="#8E8E93"
-            style={{ marginRight: 6 }}
-          />
-          <Text style={styles.tapPromptText}>
-            {revealedSideIndex > 0 ? 'Chạm vào thẻ để ẩn lại' : 'Chạm để xem nghĩa / mặt ẩn'}
-          </Text>
-        </TouchableOpacity>
+              {/* Light Red 'X' badge on top right when swiping left (Image 2) */}
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.cornerBadgeRight,
+                  { opacity: redBadgeOpacity }
+                ]}
+              >
+                <Feather name="x" size={15} color="#8A4A45" />
+              </Animated.View>
+
+              {/* Card status badge & Speaker button phát âm từ lập tức */}
+              <View style={styles.badgeRow}>
+                <View style={styles.badgeLabelContainer}>
+                  <Feather name="circle" size={10} color="#999999" style={{ marginRight: 5 }} />
+                  <Text style={styles.badgeLabel}>
+                    {currentCard.isNew ? 'THẺ MỚI' : 'ÔN TẬP'}
+                  </Text>
+                </View>
+
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <TouchableOpacity
+                    style={styles.micPracticeBtn}
+                    onPress={() => setShowVoicePractice(true)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Feather name="mic" size={17} color="#2563EB" />
+                  </TouchableOpacity>
+
+                  <SpeakerButton
+                    text={sides[0] || currentCard.front}
+                    size={19}
+                    color="#4B5563"
+                    activeColor="#2563EB"
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.95}
+                onPress={handleToggleReveal}
+                style={styles.cardInnerTouchable}
+              >
+                {/* Front content */}
+                <View style={styles.sideContent}>
+                  {Boolean(currentCard.thumbnailUrl || currentCard.imageUrl) && (
+                    <View style={styles.cardFrontCoverWrapper}>
+                      <Image
+                        source={{ uri: (currentCard.thumbnailUrl || currentCard.imageUrl) as string }}
+                        style={styles.cardFrontCover}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  )}
+                  <MarkdownCard content={sides[0] || currentCard.front} isRevealed={revealedSideIndex > 0} isTitle />
+                  {liveCardIpa ? (
+                    <Text style={styles.frontIpaText}>{liveCardIpa}</Text>
+                  ) : null}
+                </View>
+
+                {/* Revealed Hidden Sides with smooth drop animation */}
+                {revealedSideIndex > 0 && (
+                  <Animated.View
+                    style={[
+                      styles.revealedSection,
+                      {
+                        opacity: dropAnim,
+                        transform: [
+                          {
+                            translateY: dropAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-10, 0]
+                            })
+                          }
+                        ]
+                      }
+                    ]}
+                  >
+                    <View style={styles.dashedSeparator} />
+                    {sides.slice(1, revealedSideIndex + 1).map((sideText, idx) => (
+                      <View key={idx} style={{ marginTop: idx > 0 ? 12 : 0 }}>
+                        {idx > 0 && <View style={styles.dashedSeparator} />}
+                        <MarkdownCard content={sideText} isRevealed={true} />
+                      </View>
+                    ))}
+                  </Animated.View>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+
+            {/* Tap to reveal / hide prompt */}
+            <TouchableOpacity style={styles.tapPrompt} onPress={handleToggleReveal}>
+              <Ionicons
+                name={revealedSideIndex > 0 ? 'eye-off-outline' : 'hand-left-outline'}
+                size={16}
+                color="#8E8E93"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.tapPromptText}>
+                {revealedSideIndex > 0 ? 'Chạm vào thẻ để ẩn lại' : 'Chạm để xem nghĩa / mặt ẩn'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <ScrollView
+            style={styles.exerciseCardOuter}
+            contentContainerStyle={styles.exerciseCardContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.exerciseCardBox}>
+              <ReviewExerciseView
+                key={`${currentCard.id}-${effectiveExerciseType}`}
+                card={currentCard}
+                exerciseType={effectiveExerciseType}
+                ipa={liveCardIpa}
+                onAnswer={(rating) => handleRate(rating)}
+                onNext={handleSkip}
+              />
+            </View>
+          </ScrollView>
+        )}
       </View>
 
       {/* Review bottom controls matching Screenshot 4 & dynamically highlights on swipe */}
@@ -717,11 +790,210 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
           onClose={() => setShowVoicePractice(false)}
         />
       )}
+
+      {/* Practice Mode Selection Modal */}
+      <Modal
+        visible={showModeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowModeModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowModeModal(false)}>
+          <View style={styles.modalBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modeModalSheet}>
+                <View style={styles.modeModalHeader}>
+                  <View>
+                    <Text style={styles.modeModalTitle}>Hình thức ôn tập</Text>
+                    <Text style={styles.modeModalSubtitle}>Chọn cách luyện tập phù hợp với bạn</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.modeModalCloseBtn}
+                    onPress={() => setShowModeModal(false)}
+                  >
+                    <Feather name="x" size={20} color="#666666" />
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.modeListScroll} showsVerticalScrollIndicator={false}>
+                  {PRACTICE_MODES.map(mode => {
+                    const isSelected = selectedPracticeMode === mode.id;
+                    return (
+                      <TouchableOpacity
+                        key={mode.id}
+                        style={[
+                          styles.modeOptionItem,
+                          isSelected && styles.modeOptionItemActive
+                        ]}
+                        activeOpacity={0.7}
+                        onPress={() => {
+                          setSelectedPracticeMode(mode.id);
+                          setShowModeModal(false);
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.modeOptionIconBox,
+                            isSelected && styles.modeOptionIconBoxActive
+                          ]}
+                        >
+                          <Feather
+                            name={mode.icon as any}
+                            size={18}
+                            color={isSelected ? '#2563EB' : '#64748B'}
+                          />
+                        </View>
+                        <View style={styles.modeOptionInfo}>
+                          <Text
+                            style={[
+                              styles.modeOptionLabel,
+                              isSelected && styles.modeOptionLabelActive
+                            ]}
+                          >
+                            {mode.label}
+                          </Text>
+                          <Text style={styles.modeOptionDesc}>{mode.desc}</Text>
+                        </View>
+                        {isSelected && (
+                          <Ionicons name="checkmark-circle" size={20} color="#2563EB" />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  subHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 6,
+    zIndex: 1
+  },
+  practiceModePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#DBEAFE'
+  },
+  practiceModePillText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#2563EB'
+  },
+  exerciseCardOuter: {
+    flex: 1,
+    width: '100%'
+  },
+  exerciseCardContent: {
+    paddingBottom: 20
+  },
+  exerciseCardBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end'
+  },
+  modeModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingTop: 18,
+    paddingBottom: 32,
+    paddingHorizontal: 18
+  },
+  modeModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 4
+  },
+  modeModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B'
+  },
+  modeModalSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 2
+  },
+  modeModalCloseBtn: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9'
+  },
+  modeListScroll: {
+    maxHeight: 460
+  },
+  modeOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0'
+  },
+  modeOptionItemActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#3B82F6'
+  },
+  modeOptionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12
+  },
+  modeOptionIconBoxActive: {
+    backgroundColor: '#DBEAFE'
+  },
+  modeOptionInfo: {
+    flex: 1,
+    marginRight: 8
+  },
+  modeOptionLabel: {
+    fontSize: 14.5,
+    fontWeight: '600',
+    color: '#334155'
+  },
+  modeOptionLabelActive: {
+    color: '#1D4ED8'
+  },
+  modeOptionDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2
+  },
   micPracticeBtn: {
     padding: 6,
     marginRight: 8,
@@ -782,11 +1054,7 @@ const styles = StyleSheet.create({
   },
   deckIndicator: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 14,
-    zIndex: 1
+    alignItems: 'center'
   },
   deckIndicatorText: {
     fontSize: 14,
