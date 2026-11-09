@@ -17,7 +17,8 @@ import { Feather, Ionicons, MaterialCommunityIcons } from './Icons';
 import { SpeakerButton } from './SpeakerButton';
 import { AutocompleteDropdown } from './AutocompleteDropdown';
 import { ImagePickerSection } from './ImagePickerSection';
-import { DictionaryService, SuggestionItem } from '../../services/dictionary';
+import { MultiSenseSelector } from './MultiSenseSelector';
+import { DictionaryService, SuggestionItem, AggregatedWordEntry, WordSense } from '../../services/dictionary';
 import { ImageSearchService } from '../../services/imageSearch';
 import { CardRepository } from '../../data/repositories';
 import { TOEIC_MAP } from '../../data/toeicWordlist';
@@ -59,6 +60,10 @@ export function QuickAddCardModal({
   const [selectedIpaUs, setSelectedIpaUs] = useState<string | null>(null);
   const [selectedIpaUk, setSelectedIpaUk] = useState<string | null>(null);
 
+  // Multi-sense dictionary state (Merriam-Webster & Free Dictionary API)
+  const [aggregatedEntry, setAggregatedEntry] = useState<AggregatedWordEntry | null>(null);
+  const [selectedSenseIds, setSelectedSenseIds] = useState<Set<string>>(new Set());
+
   const debounceTimerRef = useRef<any>(null);
   // Index của mặt ẩn được auto-fill khi chọn gợi ý (để ẩn SpeakerButton)
   const autoFilledSideIndexRef = useRef<number | null>(null);
@@ -74,6 +79,8 @@ export function QuickAddCardModal({
     setShowSuggestions(false);
     setSelectedIpaUs(null);
     setSelectedIpaUk(null);
+    setAggregatedEntry(null);
+    setSelectedSenseIds(new Set());
     setImages([]);
     setSelectedImage(null);
     setImagesLoading(false);
@@ -158,6 +165,41 @@ export function QuickAddCardModal({
                 })
                 .catch(() => {})
                 .finally(() => setImagesLoading(false));
+
+              // Tự động tra cứu đa nguồn (Merriam-Webster & Free Dictionary) để lấy senses
+              DictionaryService.lookupAggregatedWord(trimmed).then(entry => {
+                if (entry && entry.senses && entry.senses.length > 0) {
+                  setAggregatedEntry(entry);
+                  if (entry.ipaUs || entry.ipaUk) {
+                    setSelectedIpaUs(entry.ipaUs || null);
+                    setSelectedIpaUk(entry.ipaUk || null);
+                  }
+                  // Nếu mặt ẩn chưa có nội dung, tự động gợi ý các senses ưu tiên
+                  setSides(prev => {
+                    if (prev.length === 1 || !prev[1]?.trim()) {
+                      const initialSelected = new Set<string>();
+                      const highSenses = entry.senses.filter((s: WordSense) => s.toeicPriority === 'high');
+                      if (highSenses.length > 0) {
+                        highSenses.forEach((s: WordSense) => initialSelected.add(s.id));
+                      } else {
+                        initialSelected.add(entry.senses[0].id);
+                      }
+                      setSelectedSenseIds(initialSelected);
+                      const selectedSenses = entry.senses.filter((s: WordSense) => initialSelected.has(s.id));
+                      const autoContent = DictionaryService.formatHiddenSideFromSenses(selectedSenses);
+                      if (autoContent) {
+                        const next = [...prev];
+                        if (next.length === 1) next.push(autoContent);
+                        else next[1] = autoContent;
+                        autoFilledSideIndexRef.current = 1;
+                        setAutoFilledSideIndex(1);
+                        return next;
+                      }
+                    }
+                    return prev;
+                  });
+                }
+              }).catch(() => {});
             }
           } finally {
             setSuggestionsLoading(false);
@@ -167,8 +209,65 @@ export function QuickAddCardModal({
         setShowSuggestions(false);
         setSuggestions([]);
         setSuggestionsLoading(false);
+        setAggregatedEntry(null);
+        setSelectedSenseIds(new Set());
       }
     }
+  };
+
+  const handleToggleSense = (senseId: string) => {
+    if (!aggregatedEntry) return;
+    const nextSet = new Set(selectedSenseIds);
+    if (nextSet.has(senseId)) {
+      nextSet.delete(senseId);
+    } else {
+      nextSet.add(senseId);
+    }
+    setSelectedSenseIds(nextSet);
+
+    const selectedSenses = aggregatedEntry.senses.filter((s: WordSense) => nextSet.has(s.id));
+    const autoContent = DictionaryService.formatHiddenSideFromSenses(selectedSenses);
+
+    setSides(prev => {
+      const next = [...prev];
+      if (next.length === 1) {
+        if (autoContent) next.push(autoContent);
+      } else {
+        next[1] = autoContent;
+      }
+      return next;
+    });
+    autoFilledSideIndexRef.current = 1;
+    setAutoFilledSideIndex(1);
+  };
+
+  const handleSelectAllSenses = () => {
+    if (!aggregatedEntry) return;
+    const nextSet = new Set<string>(aggregatedEntry.senses.map((s: WordSense) => s.id));
+    setSelectedSenseIds(nextSet);
+    const autoContent = DictionaryService.formatHiddenSideFromSenses(aggregatedEntry.senses);
+    setSides(prev => {
+      const next = [...prev];
+      if (next.length === 1) {
+        if (autoContent) next.push(autoContent);
+      } else {
+        next[1] = autoContent;
+      }
+      return next;
+    });
+    autoFilledSideIndexRef.current = 1;
+    setAutoFilledSideIndex(1);
+  };
+
+  const handleDeselectAllSenses = () => {
+    setSelectedSenseIds(new Set());
+    setSides(prev => {
+      const next = [...prev];
+      if (next.length > 1) {
+        next[1] = '';
+      }
+      return next;
+    });
   };
 
   const handleSelectSuggestion = (item: SuggestionItem) => {
@@ -184,37 +283,45 @@ export function QuickAddCardModal({
     setShowSuggestions(false);
     setSuggestions([]);
 
-    // Tra cứu đầy đủ: IPA chính xác + đa nghĩa + câu ví dụ của từng nghĩa
-    DictionaryService.lookupWordFull(item.word).then(info => {
-      // Cập nhật IPA nếu có kết quả tốt hơn
-      if (info.verified && (info.ipaUs || info.ipaUk)) {
-        setSelectedIpaUs(info.ipaUs || null);
-        setSelectedIpaUk(info.ipaUk || null);
+    // Tra cứu đa nguồn (Merriam-Webster & Free Dictionary API) + phân loại senses
+    DictionaryService.lookupAggregatedWord(item.word).then(entry => {
+      setAggregatedEntry(entry);
+      if (entry.ipaUs || entry.ipaUk) {
+        setSelectedIpaUs(entry.ipaUs || null);
+        setSelectedIpaUk(entry.ipaUk || null);
       }
 
-      // Xây dựng nội dung mặt ẩn: tất cả các nghĩa + câu ví dụ của từng nghĩa
-      const autoContent = DictionaryService.formatHiddenSideContent(info);
+      if (entry.senses && entry.senses.length > 0) {
+        const initialSelected = new Set<string>();
+        const highSenses = entry.senses.filter((s: WordSense) => s.toeicPriority === 'high');
+        if (highSenses.length > 0) {
+          highSenses.forEach((s: WordSense) => initialSelected.add(s.id));
+        } else {
+          initialSelected.add(entry.senses[0].id);
+        }
+        setSelectedSenseIds(initialSelected);
 
-      if (autoContent && autoContent.trim().length > 0) {
-        setSides(prev => {
-          const next = [...prev];
-          // Chỉ điền mặt ẩn nếu chưa có nội dung (tránh ghi đè nội dung người dùng đã nhập)
-          if (next.length === 1) {
-            next.push(autoContent);
-          } else if (!next[1].trim()) {
-            next[1] = autoContent;
-          } else {
-            // Mặt ẩn đã có nội dung → không ghi đè
-            return prev;
-          }
-          return next;
-        });
-        // Đánh dấu mặt ẩn index 1 là được auto-fill (ẩn SpeakerButton)
-        autoFilledSideIndexRef.current = 1;
-        setAutoFilledSideIndex(1);
+        const selectedSenses = entry.senses.filter((s: WordSense) => initialSelected.has(s.id));
+        const autoContent = DictionaryService.formatHiddenSideFromSenses(selectedSenses);
+
+        if (autoContent && autoContent.trim().length > 0) {
+          setSides(prev => {
+            const next = [...prev];
+            // Chỉ điền mặt ẩn nếu chưa có nội dung
+            if (next.length === 1) {
+              next.push(autoContent);
+            } else if (!next[1].trim()) {
+              next[1] = autoContent;
+            } else {
+              return prev;
+            }
+            return next;
+          });
+          autoFilledSideIndexRef.current = 1;
+          setAutoFilledSideIndex(1);
+        }
       }
     }).catch(() => {
-      // Nếu API lỗi, chỉ dùng meaningVi từ gợi ý TOEIC (nếu có)
       if (item.meaningVi) {
         setSides(prev => {
           const next = [...prev];
@@ -470,6 +577,18 @@ export function QuickAddCardModal({
                       selectedImageUrl={selectedImage?.url || null}
                       loading={imagesLoading}
                       onSelectImage={setSelectedImage}
+                    />
+                  )}
+
+                  {/* Danh sách các nét nghĩa phân loại từ Merriam-Webster & Free Dictionary API */}
+                  {index === 0 && aggregatedEntry && aggregatedEntry.senses.length > 0 && (
+                    <MultiSenseSelector
+                      senses={aggregatedEntry.senses}
+                      selectedSenseIds={selectedSenseIds}
+                      onToggleSense={handleToggleSense}
+                      onSelectAll={handleSelectAllSenses}
+                      onDeselectAll={handleDeselectAllSenses}
+                      sources={aggregatedEntry.sources}
                     />
                   )}
 

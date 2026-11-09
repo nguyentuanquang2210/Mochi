@@ -1,5 +1,9 @@
 import { database } from '../data/database';
 import { TOEIC_MAP, TOEIC_WORDLIST, ToeicWordEntry } from '../data/toeicWordlist';
+import { AggregatedWordEntry, WordSense, DictionarySource } from './dictionary/types';
+import { DictionaryAggregator } from './dictionary/dictionaryAggregator';
+
+export { AggregatedWordEntry, WordSense, DictionarySource };
 
 export interface WordMeaningItem {
   partOfSpeech: string;       // noun, verb, adjective, adverb...
@@ -323,6 +327,7 @@ const COMMON_TRANSLATIONS: Record<string, string> = {
 class DictionaryServiceImpl {
   // In-memory runtime cache for instantaneous response (< 1ms)
   private memoryCache = new Map<string, DictionaryWordInfo>();
+  private aggregatedCache = new Map<string, AggregatedWordEntry>();
   private phraseCache = new Map<string, string>();
   private activeAbortController: AbortController | null = null;
 
@@ -935,6 +940,8 @@ class DictionaryServiceImpl {
     const word = rawWord.trim().toLowerCase();
     const baseInfo = await this.lookupWord(rawWord);
 
+    let ipaUs: string | null = baseInfo.ipaUs || null;
+    let ipaUk: string | null = baseInfo.ipaUk || null;
     let exampleEn: string | null = baseInfo.exampleEn || null;
     let exampleVi: string | null = baseInfo.exampleVi || null;
     let meaningVi: string | null = baseInfo.meaningVi || null;
@@ -967,7 +974,29 @@ class DictionaryServiceImpl {
       partOfSpeech = predefined[0].partOfSpeech || null;
     }
 
-    // 2. Nếu chưa có, tra cứu nguồn từ điển đa nghĩa trực tuyến từ Free Dictionary API (dictionaryapi.dev)
+    // 2. Tra cứu nguồn từ điển đa nghĩa tổng hợp (Merriam-Webster & Free Dictionary API)
+    if (meaningsList.length === 0) {
+      try {
+        const agg = await this.lookupAggregatedWord(word);
+        if (agg && agg.senses && agg.senses.length > 0) {
+          meaningsList = agg.senses.map((s: WordSense) => ({
+            partOfSpeech: s.partOfSpeech,
+            definitionVi: s.meaningVi || s.definitionEn,
+            definitionEn: s.definitionEn,
+            exampleEn: s.exampleEn,
+            exampleVi: s.exampleVi
+          }));
+          if (!ipaUs && agg.ipaUs) ipaUs = agg.ipaUs;
+          if (!ipaUk && agg.ipaUk) ipaUk = agg.ipaUk;
+          if (!meaningVi && agg.senses[0].meaningVi) meaningVi = agg.senses[0].meaningVi;
+          if (!exampleEn && agg.senses[0].exampleEn) exampleEn = agg.senses[0].exampleEn;
+          if (!exampleVi && agg.senses[0].exampleVi) exampleVi = agg.senses[0].exampleVi;
+          if (!partOfSpeech && agg.senses[0].partOfSpeech) partOfSpeech = agg.senses[0].partOfSpeech;
+        }
+      } catch {}
+    }
+
+    // 3. Nếu chưa có, tra cứu nguồn từ điển đa nghĩa trực tuyến từ Free Dictionary API (dictionaryapi.dev)
     if (meaningsList.length === 0) {
       try {
         const res = await fetchWithTimeout(
@@ -1114,6 +1143,96 @@ class DictionaryServiceImpl {
     } catch {}
 
     return fullResult;
+  }
+
+  /**
+   * Tra cứu từ vựng đa nguồn (Merriam-Webster & Free Dictionary API)
+   * Tách từng nét nghĩa (senses), phân loại TOEIC, dịch theo ngữ cảnh và đối chiếu
+   */
+  async lookupAggregatedWord(rawWord: string): Promise<AggregatedWordEntry> {
+    const word = rawWord.trim().toLowerCase();
+    if (!word) {
+      return {
+        word: '',
+        sources: [],
+        senses: [],
+        cachedAt: Date.now()
+      };
+    }
+
+    // 1. In-memory cache (0ms)
+    if (this.aggregatedCache.has(word)) {
+      return this.aggregatedCache.get(word)!;
+    }
+
+    // 2. SQLite cache
+    try {
+      const db = await database();
+      const cached = await db.getFirstAsync<{ data_json: string | null }>(
+        'SELECT data_json FROM dictionary_cache WHERE LOWER(word) = ?',
+        word
+      );
+      if (cached?.data_json) {
+        const parsed = JSON.parse(cached.data_json);
+        if (parsed?.aggregatedEntry) {
+          const entry = parsed.aggregatedEntry as AggregatedWordEntry;
+          this.aggregatedCache.set(word, entry);
+          return entry;
+        }
+      }
+    } catch {}
+
+    // 3. Tra cứu và tổng hợp từ 2 API
+    const entry = await DictionaryAggregator.aggregateWord(word);
+    this.aggregatedCache.set(word, entry);
+
+    // 4. Lưu vào SQLite cache dưới nền
+    try {
+      const db = await database();
+      await db.runAsync(
+        `INSERT OR REPLACE INTO dictionary_cache (word, ipa_us, ipa_uk, phonetic, data_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        word,
+        entry.ipaUs || null,
+        entry.ipaUk || null,
+        entry.ipaUs || null,
+        JSON.stringify({
+          word,
+          ipaUs: entry.ipaUs,
+          ipaUk: entry.ipaUk,
+          aggregatedEntry: entry,
+          exampleEn: entry.senses[0]?.exampleEn || null,
+          exampleVi: entry.senses[0]?.exampleVi || null,
+          meaningVi: entry.senses[0]?.meaningVi || null,
+          partOfSpeech: entry.senses[0]?.partOfSpeech || null
+        }),
+        Date.now()
+      );
+    } catch {}
+
+    return entry;
+  }
+
+  /**
+   * Tạo nội dung mặt ẩn từ danh sách senses người dùng đã chọn
+   */
+  formatHiddenSideFromSenses(senses: WordSense[]): string {
+    if (!senses || senses.length === 0) return '';
+    const blocks: string[] = [];
+    for (const s of senses) {
+      const lines: string[] = [];
+      const posText = s.partOfSpeech ? ` (${s.partOfSpeech})` : '';
+      const domainTag = s.domain && s.domain !== 'general' ? ` [${s.domain.toUpperCase()}]` : '';
+      lines.push(`- Nghĩa: ${s.meaningVi || s.definitionEn}${posText}${domainTag}`);
+      if (s.exampleEn) {
+        lines.push(`- Câu ví dụ: 📝 ${s.exampleEn}`);
+        if (s.exampleVi) {
+          lines.push(`  (${s.exampleVi})`);
+        }
+      }
+      blocks.push(lines.join('\n'));
+    }
+    return blocks.join('\n\n');
   }
 
   /**
