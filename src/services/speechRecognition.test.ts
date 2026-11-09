@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('expo-file-system/legacy', () => ({
+  uploadAsync: vi.fn(),
+  FileSystemUploadType: { BINARY_CONTENT: 0 }
+}));
+
 import { SpeechRecognitionService } from './speechRecognition';
 
 describe('SpeechRecognitionService', () => {

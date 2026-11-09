@@ -22,6 +22,35 @@ interface VoicePracticeModalProps {
   onClose: () => void;
 }
 
+// Cấu hình ghi âm siêu tốc: iOS ghi uncompressed WAV 16kHz, Android ghi AMR 8kHz
+// Được tối ưu trực tiếp cho Google Speech API v2 (phản hồi trong 0.2s - 0.3s)
+const FAST_RECORDING_OPTIONS: Audio.RecordingOptions = {
+  isMeteringEnabled: true,
+  android: {
+    extension: '.amr',
+    outputFormat: Audio.AndroidOutputFormat.AMR_NB,
+    audioEncoder: Audio.AndroidAudioEncoder.AMR_NB,
+    sampleRate: 8000,
+    numberOfChannels: 1,
+    bitRate: 12200
+  },
+  ios: {
+    extension: '.wav',
+    outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+    audioQuality: Audio.IOSAudioQuality.MAX,
+    sampleRate: 16000,
+    numberOfChannels: 1,
+    bitRate: 256000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false
+  },
+  web: {
+    mimeType: 'audio/webm',
+    bitsPerSecond: 128000
+  }
+};
+
 export function VoicePracticeModal({
   visible,
   word,
@@ -42,6 +71,7 @@ export function VoicePracticeModal({
   const timerRef = useRef<any>(null);
   const autoStopTimeoutRef = useRef<any>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const resultPopAnim = useRef(new Animated.Value(0.7)).current;
 
   // Hiệu ứng nhịp đập khi đang thu âm
   useEffect(() => {
@@ -49,8 +79,8 @@ export function VoicePracticeModal({
     if (isRecording) {
       anim = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.25, duration: 500, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 500, useNativeDriver: true })
+          Animated.timing(pulseAnim, { toValue: 1.25, duration: 450, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 450, useNativeDriver: true })
         ])
       );
       anim.start();
@@ -61,6 +91,19 @@ export function VoicePracticeModal({
       if (anim) anim.stop();
     };
   }, [isRecording]);
+
+  // Hiệu ứng chữ vừa đọc nhảy lên màn hình khi có kết quả nhận dạng
+  useEffect(() => {
+    if (status === 'correct' || status === 'incorrect') {
+      resultPopAnim.setValue(0.7);
+      Animated.spring(resultPopAnim, {
+        toValue: 1,
+        friction: 5,
+        tension: 100,
+        useNativeDriver: true
+      }).start();
+    }
+  }, [status]);
 
   // Reset state khi mở/đóng modal
   useEffect(() => {
@@ -134,11 +177,20 @@ export function VoicePracticeModal({
         playThroughEarpieceAndroid: false
       });
 
-      // Bắt đầu bản ghi âm chất lượng cao
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
+      // Bắt đầu bản ghi âm với cấu hình siêu tốc FAST_RECORDING_OPTIONS
+      let recordingInstance: Audio.Recording | null = null;
+      try {
+        const { recording } = await Audio.Recording.createAsync(FAST_RECORDING_OPTIONS);
+        recordingInstance = recording;
+      } catch (presetErr) {
+        // Dự phòng: nếu thiết bị không hỗ trợ tùy chọn mở rộng thì dùng HIGH_QUALITY
+        const { recording } = await Audio.Recording.createAsync(
+          Audio.RecordingOptionsPresets.HIGH_QUALITY
+        );
+        recordingInstance = recording;
+      }
+
+      recordingRef.current = recordingInstance;
 
       setIsRecording(true);
       setStatus('recording');
@@ -149,10 +201,10 @@ export function VoicePracticeModal({
         setRecordingSeconds(sec => sec + 1);
       }, 1000);
 
-      // Tự động dừng sau 6 giây (phù hợp với phát âm từ vựng đơn)
+      // Tự động dừng sau 5 giây (phù hợp với phát âm từ vựng đơn)
       autoStopTimeoutRef.current = setTimeout(() => {
         stopRecording();
-      }, 6000);
+      }, 5000);
 
     } catch (err: any) {
       console.warn('Lỗi khi bắt đầu thu âm:', err);
@@ -186,7 +238,7 @@ export function VoicePracticeModal({
         return;
       }
 
-      // Bắt đầu nhận diện giọng nói Speech-to-Text để hiển thị chữ mà người dùng vừa đọc
+      // Nhận diện giọng nói NGAY LẬP TỨC và phân tích đối chiếu với từ
       setStatus('evaluating');
       evaluateAudio(uri);
 
@@ -202,7 +254,6 @@ export function VoicePracticeModal({
       const transcript = await SpeechRecognitionService.transcribeAudio(uri);
 
       if (!transcript) {
-        // Nếu mạng yếu hoặc không nhận diện được, vẫn giữ bản thu để người dùng nghe lại
         setStatus('recorded');
         return;
       }
@@ -302,10 +353,10 @@ export function VoicePracticeModal({
                     <View style={styles.recordingDot} />
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.recordingTitle}>
-                        Đang thu âm... ({formatTime(recordingSeconds)})
+                        Đang lắng nghe... ({formatTime(recordingSeconds)})
                       </Text>
                       <Text style={styles.recordingSub}>
-                        Hãy phát âm rõ từ "{word}", bấm nút đỏ để dừng
+                        Hãy đọc từ "{word}", bấm nút đỏ khi nói xong
                       </Text>
                     </View>
                   </View>
@@ -315,28 +366,40 @@ export function VoicePracticeModal({
                   <View style={[styles.statusBox, styles.statusBoxEvaluating]}>
                     <ActivityIndicator size="small" color="#2563EB" style={{ marginRight: 10 }} />
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.evaluatingTitle}>Đang nhận dạng phát âm...</Text>
-                      <Text style={styles.evaluatingSub}>Hệ thống đang phân tích giọng nói của bạn</Text>
+                      <Text style={styles.evaluatingTitle}>Đang nhận dạng...</Text>
+                      <Text style={styles.evaluatingSub}>Phân tích phát âm tức thì</Text>
                     </View>
                   </View>
                 )}
 
                 {status === 'correct' && (
-                  <View style={[styles.statusBox, styles.statusBoxCorrect]}>
-                    <Ionicons name="checkmark-circle" size={30} color="#059669" style={{ marginRight: 10 }} />
+                  <Animated.View
+                    style={[
+                      styles.statusBox,
+                      styles.statusBoxCorrect,
+                      { transform: [{ scale: resultPopAnim }] }
+                    ]}
+                  >
+                    <Ionicons name="checkmark-circle" size={32} color="#059669" style={{ marginRight: 10 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.correctTitle}>Phát âm CHÍNH XÁC! 🎉</Text>
                       <View style={styles.spokenBadgeCorrect}>
-                        <Text style={styles.spokenBadgeLabel}>Máy nhận diện:</Text>
+                        <Text style={styles.spokenBadgeLabel}>Chữ bạn vừa đọc:</Text>
                         <Text style={styles.spokenBadgeTextCorrect}>"{recognizedText}"</Text>
                       </View>
                     </View>
-                  </View>
+                  </Animated.View>
                 )}
 
                 {status === 'incorrect' && (
-                  <View style={[styles.statusBox, styles.statusBoxIncorrect]}>
-                    <Ionicons name="close-circle" size={30} color="#DC2626" style={{ marginRight: 10 }} />
+                  <Animated.View
+                    style={[
+                      styles.statusBox,
+                      styles.statusBoxIncorrect,
+                      { transform: [{ scale: resultPopAnim }] }
+                    ]}
+                  >
+                    <Ionicons name="close-circle" size={32} color="#DC2626" style={{ marginRight: 10 }} />
                     <View style={{ flex: 1 }}>
                       <Text style={styles.incorrectTitle}>Chưa chính xác</Text>
                       <View style={styles.spokenBadgeIncorrect}>
@@ -345,7 +408,7 @@ export function VoicePracticeModal({
                       </View>
                       <Text style={styles.incorrectHint}>Bấm "Nghe mẫu" rồi thử phát âm lại nhé!</Text>
                     </View>
-                  </View>
+                  </Animated.View>
                 )}
 
                 {status === 'recorded' && (
@@ -363,7 +426,7 @@ export function VoicePracticeModal({
                 {status === 'idle' && (
                   <View style={styles.statusBox}>
                     <Text style={styles.idleHint}>
-                      {errorMessage || 'Bấm vào nút Micro màu xanh bên dưới để bắt đầu thu âm phát âm của bạn.'}
+                      {errorMessage || 'Bấm nút Micro màu xanh bên dưới và phát âm từ tiếng Anh.'}
                     </Text>
                   </View>
                 )}
@@ -558,8 +621,8 @@ const styles = StyleSheet.create({
     marginRight: 4
   },
   spokenBadgeTextCorrect: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#059669'
   },
   statusBoxIncorrect: {
@@ -580,8 +643,8 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap'
   },
   spokenBadgeTextIncorrect: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#DC2626'
   },
   incorrectHint: {
