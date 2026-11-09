@@ -315,7 +315,22 @@ export function DeckView({
     );
   };
 
-  const reviewDueCount = dueCount > 0 ? dueCount : cards.filter(c => c.isDue || c.isNew).length;
+  const reviewDueCount = dueCount;
+
+  const handlePressReview = () => {
+    if (reviewDueCount === 0) {
+      Alert.alert(
+        'Đã ôn xong hôm nay 🎉',
+        `Bộ thẻ "${deck.name}" hiện không có từ nào đến hạn cần ôn theo Spaced Repetition.\n\nBạn có muốn vào chế độ "Ôn cấp tốc" (Cram Mode) để xem lại trước không?`,
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { text: 'Ôn cấp tốc', onPress: () => onStartReview('cram') }
+        ]
+      );
+      return;
+    }
+    onStartReview('due');
+  };
 
   return (
     <View style={styles.container}>
@@ -337,7 +352,7 @@ export function DeckView({
             <TouchableOpacity
               style={styles.reviewBannerMain}
               activeOpacity={0.8}
-              onPress={() => onStartReview('due')}
+              onPress={handlePressReview}
             >
               <Ionicons name="file-tray-full-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
               <Text style={styles.reviewBannerText}>Ôn tập</Text>

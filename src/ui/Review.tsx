@@ -117,29 +117,15 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     let cards: { card: CardSummary; state: FsrsState }[] = [];
     if (reviewMode === 'new' && deck) {
       cards = await CardRepository.getNewCards(deck.id);
-    } else if (reviewMode === 'cram' && deck) {
-      cards = await CardRepository.getCramCards(deck.id);
+    } else if (reviewMode === 'cram') {
+      cards = await CardRepository.getCramCards(deck ? deck.id : '');
     } else if (deck) {
-      // 1. Lấy danh sách thẻ đến hạn ôn tập (Due) + thẻ mới của bộ thẻ
-      const dueCards = await CardRepository.getDueCards(deck.id);
-      if (dueCards.length > 0) {
-        cards = dueCards;
-      } else {
-        // Nếu không có thẻ đến hạn, kiểm tra thẻ mới
-        const newCards = await CardRepository.getNewCards(deck.id);
-        if (newCards.length > 0) {
-          cards = newCards;
-        } else {
-          // Đã hoàn thành hết thẻ cần học, chuyển sang ôn cấp tốc toàn bộ thẻ
-          cards = await CardRepository.getCramCards(deck.id);
-        }
-      }
+      // 1. Chỉ lấy danh sách thẻ đến hạn ôn tập (Due) + thẻ mới của bộ thẻ
+      // TUYỆT ĐỐI KHÔNG tự động chuyển sang cram (ôn cấp tốc) khi hết thẻ, vì sẽ làm tăng thời gian FSRS liên tục ngoài ý muốn
+      cards = await CardRepository.getDueCards(deck.id);
     } else {
-      // Global Review (Hộp ôn tập tổng hợp): Trộn đều thẻ đến hạn từ tất cả các bộ thẻ
+      // Global Review: Chỉ lấy các thẻ đến hạn từ tất cả các bộ
       cards = await CardRepository.getDueCards();
-      if (cards.length === 0) {
-        cards = await CardRepository.getCramCards('');
-      }
     }
 
     // Đảo tung thẻ ngẫu nhiên (Fisher-Yates Shuffle) chuẩn Spaced Repetition Mochi Cards
@@ -151,6 +137,18 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     setRevealedSideIndex(0);
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
+    setLoading(false);
+  };
+
+  const handleStartCram = async () => {
+    setLoading(true);
+    const cram = await CardRepository.getCramCards(deck ? deck.id : '');
+    const shuffled = shuffleCards(cram);
+    setQueue(shuffled);
+    queueRef.current = shuffled;
+    setCurrentIndex(0);
+    currentIndexRef.current = 0;
+    setRevealedSideIndex(0);
     setLoading(false);
   };
 
@@ -455,12 +453,21 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
 
         <View style={styles.centerContainer}>
           <Ionicons name="checkmark-circle-outline" size={60} color="#2ECC71" style={{ marginBottom: 16 }} />
-          <Text style={styles.doneTitle}>Đã hoàn thành ôn tập!</Text>
+          <Text style={styles.doneTitle}>
+            {queue.length === 0 ? 'Hôm nay không còn thẻ đến hạn!' : 'Đã hoàn thành ôn tập!'}
+          </Text>
           <Text style={styles.doneSubtitle}>
-            Bạn đã ôn tập xong tất cả các thẻ trong {deck?.name ? `bộ "${deck.name}"` : 'hàng đợi'}.
+            {queue.length === 0
+              ? `Tất cả các thẻ trong ${deck?.name ? `bộ "${deck.name}"` : 'hàng đợi'} đã được ghi nhận. Thuật toán Spaced Repetition sẽ nhắc bạn ôn lại khi đến thời điểm tối ưu của não bộ.`
+              : `Bạn đã ôn tập xong toàn bộ thẻ cần học hôm nay. Lịch ôn tiếp theo đã được cập nhật chuẩn xác.`}
           </Text>
           <TouchableOpacity style={styles.backHomeBtn} onPress={onDone}>
             <Text style={styles.backHomeText}>Quay về bộ thẻ</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.cramOptionBtn} onPress={handleStartCram} activeOpacity={0.75}>
+            <Feather name="zap" size={15} color="#475569" style={{ marginRight: 6 }} />
+            <Text style={styles.cramOptionBtnText}>Ôn cấp tốc nếu muốn (Cram Mode)</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1238,6 +1245,23 @@ const styles = StyleSheet.create({
   backHomeText: {
     color: '#FFFFFF',
     fontSize: 15,
+    fontWeight: '600'
+  },
+  cramOptionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  cramOptionBtnText: {
+    fontSize: 13,
+    color: '#475569',
     fontWeight: '600'
   }
 });

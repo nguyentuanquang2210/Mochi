@@ -37,6 +37,7 @@ export default function App() {
   const [cards, setCards] = useState<CardSummary[]>([]);
   const [allCards, setAllCards] = useState<CardSummary[]>([]);
   const [inboxDueCount, setInboxDueCount] = useState(0);
+  const [deckDueCount, setDeckDueCount] = useState(0);
   const [newCardsCount, setNewCardsCount] = useState(0);
   const [trashCount, setTrashCount] = useState(0);
   const [userName, setUserName] = useState('Quang');
@@ -83,9 +84,12 @@ export default function App() {
       setCards(deckCards);
       const newCount = await CardRepository.countNew(targetDeckId);
       setNewCardsCount(newCount);
+      const deckDue = await CardRepository.countDue(targetDeckId);
+      setDeckDueCount(deckDue);
     } else {
       setCards([]);
       setNewCardsCount(0);
+      setDeckDueCount(0);
     }
 
     const totalDue = await CardRepository.countDue();
@@ -269,7 +273,7 @@ export default function App() {
         deck={activeDeck}
         allDecks={decks}
         cards={cards}
-        dueCount={inboxDueCount}
+        dueCount={deckDueCount}
         newCardsCount={newCardsCount}
         onOpenDrawer={() => setDrawerVisible(true)}
         onStartReview={(mode) => {
