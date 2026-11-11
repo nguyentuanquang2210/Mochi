@@ -17,7 +17,7 @@ import {
   UIManager,
   View
 } from 'react-native';
-import { Feather, Ionicons } from './components/Icons';
+import { Feather, Ionicons, MaterialCommunityIcons } from './components/Icons';
 import { CardOptionsMenu } from './components/CardOptionsMenu';
 import { MarkdownCard } from './components/MarkdownCard';
 import { SpeakerButton, lastSpeakerPressTimestamp } from './components/SpeakerButton';
@@ -26,8 +26,8 @@ import { ReviewExerciseView, ExerciseType } from './components/ReviewExerciseVie
 import { SpeechService } from '../services/speech';
 import { TOEIC_MAP } from '../data/toeicWordlist';
 import { DictionaryService, normalizeToStandardIpa } from '../services/dictionary';
-import type { CardSummary, Deck, FsrsState, Rating } from '../domain/types';
-import { CardRepository } from '../data/repositories';
+import type { CardSummary, Deck, FsrsState, Rating, StudyQueueItem } from '../domain/types';
+import { CardRepository, StudySessionRepository } from '../data/repositories';
 
 export type PracticeMode = 'mixed' | ExerciseType;
 
@@ -39,7 +39,7 @@ export const PRACTICE_MODES: { id: PracticeMode; label: string; icon: string; de
   { id: 'speaking', label: 'Luyện phát âm', icon: 'mic', desc: 'Nhìn từ → Tự đọc to vào micro' },
   { id: 'sentence_cloze', label: 'Điền từ vào câu', icon: 'file-text', desc: 'Điền từ vào chỗ trống trong ngữ cảnh' },
   { id: 'word_family', label: 'Họ từ (Word Form)', icon: 'layers', desc: 'Biến thể từ loại: Danh, Động, Tính, Trạng từ' },
-  { id: 'flashcard', label: 'Lật thẻ truyền thống', icon: 'copy', desc: 'Mặt trước / Mặt sau dạng flashcard' },
+  { id: 'flashcard', label: 'Ghi nhớ bằng thẻ', icon: 'cards-outline', desc: 'Mặt trước / Mặt sau dạng flashcard' },
 ];
 
 const MIXED_CYCLE: ExerciseType[] = [
@@ -75,7 +75,7 @@ interface ReviewProps {
 }
 
 export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditCard }: ReviewProps) {
-  const [queue, setQueue] = useState<{ card: CardSummary; state: FsrsState }[]>([]);
+  const [queue, setQueue] = useState<StudyQueueItem[]>([]);
   const [history, setHistory] = useState<{ card: CardSummary; state: FsrsState; previousState: FsrsState }[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [revealedSideIndex, setRevealedSideIndex] = useState(0); // 0 = only front side, > 0 = revealed hidden sides
@@ -85,6 +85,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const [selectedPracticeMode, setSelectedPracticeMode] = useState<PracticeMode>('mixed');
   const [showModeModal, setShowModeModal] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -102,7 +103,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const dropAnim = useRef(new Animated.Value(0)).current;
 
   // Refs to avoid stale closure in PanResponder
-  const queueRef = useRef<{ card: CardSummary; state: FsrsState }[]>([]);
+  const queueRef = useRef<StudyQueueItem[]>([]);
   const currentIndexRef = useRef(0);
 
   useEffect(() => {
@@ -126,20 +127,32 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     loadDueCards();
   }, [deck?.id, reviewMode]);
 
+  useEffect(() => {
+    if (!loading && queue.length > 0 && currentIndex >= queue.length) {
+      StudySessionRepository.complete(sessionId).catch(() => {});
+    }
+  }, [loading, queue.length, currentIndex, sessionId]);
+
   const loadDueCards = async () => {
     setLoading(true);
-    let cards: { card: CardSummary; state: FsrsState }[] = [];
-    if (reviewMode === 'new' && deck) {
-      cards = await CardRepository.getNewCards(deck.id);
+    const saved = await StudySessionRepository.loadActive(deck?.id, reviewMode);
+    if (saved) {
+      setQueue(saved.queue); queueRef.current = saved.queue;
+      setCurrentIndex(saved.currentIndex); currentIndexRef.current = saved.currentIndex;
+      setSessionId(saved.id); setLoading(false); return;
+    }
+    let cards: StudyQueueItem[] = [];
+    if (reviewMode === 'new') {
+      cards = (await CardRepository.getNewCards(deck?.id)).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
     } else if (reviewMode === 'cram') {
-      cards = await CardRepository.getCramCards(deck ? deck.id : '');
+      cards = (await CardRepository.getCramCards(deck ? deck.id : '')).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
     } else if (deck) {
       // 1. Chỉ lấy danh sách thẻ đến hạn ôn tập (Due) + thẻ mới của bộ thẻ
       // TUYỆT ĐỐI KHÔNG tự động chuyển sang cram (ôn cấp tốc) khi hết thẻ, vì sẽ làm tăng thời gian FSRS liên tục ngoài ý muốn
-      cards = await CardRepository.getDueCards(deck.id);
+      cards = await CardRepository.getDueCards(deck.id) as StudyQueueItem[];
     } else {
       // Global Review: Chỉ lấy các thẻ đến hạn từ tất cả các bộ
-      cards = await CardRepository.getDueCards();
+      cards = await CardRepository.getDueCards() as StudyQueueItem[];
     }
 
     // Đảo tung thẻ ngẫu nhiên (Fisher-Yates Shuffle) chuẩn Spaced Repetition Mochi Cards
@@ -151,18 +164,30 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     setRevealedSideIndex(0);
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
+    if (shuffled.length > 0) {
+      const createdSession = await StudySessionRepository.save({ deckId: deck?.id, reviewMode, queue: shuffled, currentIndex: 0 });
+      setSessionId(createdSession);
+    } else {
+      setSessionId(null);
+    }
     setLoading(false);
   };
 
   const handleStartCram = async () => {
     setLoading(true);
-    const cram = await CardRepository.getCramCards(deck ? deck.id : '');
+    const cram = (await CardRepository.getCramCards(deck ? deck.id : '')).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
     const shuffled = shuffleCards(cram);
     setQueue(shuffled);
     queueRef.current = shuffled;
     setCurrentIndex(0);
     currentIndexRef.current = 0;
     setRevealedSideIndex(0);
+    if (shuffled.length > 0) {
+      const createdSession = await StudySessionRepository.save({ deckId: deck?.id, reviewMode: 'cram', queue: shuffled, currentIndex: 0 });
+      setSessionId(createdSession);
+    } else {
+      setSessionId(null);
+    }
     setLoading(false);
   };
 
@@ -244,29 +269,32 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     dropAnim.setValue(0);
     setRevealedSideIndex(0);
 
-    // VÒNG LẶP HỌC LẠI KHI QUÊN (Intra-session learning loop chuẩn Mochi Cards & Duolingo):
-    // Nếu người dùng trả lời sai hoặc bấm 'again' (Quên / ✕):
-    // Chèn thẻ này vào CUỐI CÙNG hàng đợi để người học bắt buộc phải làm lại ở cuối phiên học cho đến khi thuộc
-    if (rating === 'again') {
-      const nextQueue = [...curQueue];
-      nextQueue.push(item);
-      queueRef.current = nextQueue;
-      setQueue(nextQueue);
-    }
-
-    // Chuyển sang thẻ tiếp theo trong bộ thẻ và cập nhật tiến trình NGAY LẬP TỨC
-    const nextIdx = curIdx + 1;
-    currentIndexRef.current = nextIdx;
-    setCurrentIndex(nextIdx);
-
-    // Lưu vào cơ sở dữ liệu SQLite dưới nền mà không làm chặn giao diện
+    // One authoritative FSRS rating per queued card. Subsequent re-reviews only
+    // test recall in this session; they must never create duplicate revlogs.
+    let updatedItem = item;
     try {
-      const oldState = item.state;
-      const nextState = await CardRepository.review(item.card, oldState, rating);
-      setHistory(prev => [...prev, { card: item.card, state: nextState, previousState: oldState }]);
+      // Cram is deliberate free practice: it may be repeated indefinitely and
+      // must not change FSRS state, due date, or write a review log.
+      if (!item.fsrsRecorded && reviewMode !== 'cram') {
+        const oldState = item.state;
+        const nextState = await CardRepository.review(item.card, oldState, rating);
+        updatedItem = { ...item, state: nextState, fsrsRecorded: true };
+        setHistory(prev => [...prev, { card: item.card, state: nextState, previousState: oldState }]);
+      }
     } catch (e) {
       console.warn('Lỗi ghi nhận lượt ôn:', e);
     }
+    // Put an incorrect card back after up to three different cards, rather than
+    // at the end or immediately again. A correct re-review simply clears it.
+    let nextQueue = [...curQueue];
+    if (rating === 'again') {
+      const insertAt = Math.min(nextQueue.length, curIdx + 1 + 3);
+      nextQueue.splice(insertAt, 0, { ...updatedItem, reReviewCount: (item.reReviewCount || 0) + 1 });
+    }
+    const nextIdx = curIdx + 1;
+    queueRef.current = nextQueue; setQueue(nextQueue);
+    currentIndexRef.current = nextIdx; setCurrentIndex(nextIdx);
+    await StudySessionRepository.save({ id: sessionId || undefined, deckId: deck?.id, reviewMode, queue: nextQueue, currentIndex: nextIdx }).then(setSessionId);
   };
 
   // Button triggers with card flying animation
@@ -549,12 +577,16 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
             onPress={() => setShowModeModal(true)}
             activeOpacity={0.7}
           >
-            <Feather
-              name={PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.icon as any || 'shuffle'}
-              size={12}
-              color="#2563EB"
-              style={{ marginRight: 5 }}
-            />
+            {selectedPracticeMode === 'flashcard' ? (
+              <MaterialCommunityIcons name="cards-outline" size={15} color="#2563EB" style={{ marginRight: 5 }} />
+            ) : (
+              <Feather
+                name={PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.icon as any || 'shuffle'}
+                size={12}
+                color="#2563EB"
+                style={{ marginRight: 5 }}
+              />
+            )}
             <Text style={styles.practiceModePillText}>
               {PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.label || 'Ôn tập'}
             </Text>
@@ -720,7 +752,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                 shouldCompactForKeyboard && { padding: 10 }
               ]}>
                 <ReviewExerciseView
-                  key={`${currentCard.id}-${effectiveExerciseType}`}
+                  key={`${currentCard.id}-${currentCard.objective}-${effectiveExerciseType}`}
                   card={currentCard}
                   exerciseType={effectiveExerciseType}
                   ipa={liveCardIpa}
@@ -953,14 +985,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#EFF6FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#DBEAFE'
   },
   practiceModePillText: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#2563EB'
   },

@@ -513,8 +513,10 @@ export class DictionaryAggregator {
       }
     }
 
-    // 5. Dịch tiếng Việt cho các senses chưa có nghĩa tiếng Việt (tối đa 4 senses tiêu biểu)
-    for (let i = 0; i < Math.min(mergedSenses.length, 5); i++) {
+    // 5. Dịch tiếng Việt cho mọi nét nghĩa. Do not substitute the English
+    // headword when translation is unavailable: callers can then hide that
+    // incomplete result instead of showing a misleading mixed-language meaning.
+    for (let i = 0; i < mergedSenses.length; i++) {
       const sense = mergedSenses[i];
       if (!sense.meaningVi) {
         // Dịch định nghĩa tiếng Anh
@@ -525,7 +527,7 @@ export class DictionaryAggregator {
           sense.meaningVi = shortMeaning;
           sense.isAiTranslated = true;
         } else {
-          sense.meaningVi = TOEIC_MAP.get(word)?.meaningVi || word;
+          sense.meaningVi = TOEIC_MAP.get(word)?.meaningVi || '';
         }
       }
 

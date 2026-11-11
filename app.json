@@ -3,6 +3,7 @@
     "name": "Mochi - Spaced Repetition Flashcards",
     "slug": "mochi-cards",
     "version": "1.0.0",
+    "icon": "./assets/icon.png",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "plugins": [
@@ -12,13 +13,35 @@
           "enableFTS": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/study-reminder.mp3"
+          ]
+        }
+      ]
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "cards.mochi.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
-      "package": "cards.mochi.mobile"
+      "package": "cards.mochi.mobile",
+      "softwareKeyboardLayoutMode": "resize",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon-adaptive.png",
+        "backgroundColor": "#F7B8CC"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "847a0672-9201-43bd-a077-7b2a05e1cc7b"
+      }
     }
   }
 }

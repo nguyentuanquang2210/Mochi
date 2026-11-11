@@ -32,13 +32,55 @@ export async function schedule(state: FsrsState, rating: Rating, now = new Date(
 
   try {
     const result = scheduler.review({ card, grade: ratingMap[rating] as 1 | 2 | 3 | 4, now });
-    return { state: asState(state.cardId, state.objective, result.card), review: result.revlog };
+    const nextState = applyMochiInterval(asState(state.cardId, state.objective, result.card), state, rating, now);
+    return { state: nextState, review: result.revlog };
   } catch (err) {
     // If card state is invalid or empty, create a fresh card and review safely
     const freshCard = scheduler.newCard({ now });
     const result = scheduler.review({ card: freshCard, grade: ratingMap[rating] as 1 | 2 | 3 | 4, now });
-    return { state: asState(state.cardId, state.objective, result.card), review: result.revlog };
+    const nextState = applyMochiInterval(asState(state.cardId, state.objective, result.card), state, rating, now);
+    return { state: nextState, review: result.revlog };
   }
+}
+
+// The learner requested Mochi's simple, predictable interval ladder. FSRS still
+// records card state/difficulty/reviews; this function owns only the next due
+// date shown to the learner. Forgetting enters a short relearning sequence.
+const MOCHI_INTERVALS = [1, 2, 4, 7, 13, 23, 42, 76, 137];
+
+function applyMochiInterval(next: FsrsState, previous: FsrsState, rating: Rating, now: Date): FsrsState {
+  const current = Math.max(0, Math.round(previous.scheduledDays || 0));
+  let scheduledDays: number;
+  if (rating === 'again') {
+    // A failed recall should be checked tomorrow, even for a mature card.
+    // The card still retains its FSRS review history, then climbs 1 → 2 → 4…
+    // again as the learner demonstrates that it is stable.
+    scheduledDays = 1;
+  } else if (rating === 'hard') {
+    scheduledDays = current > 0 ? Math.max(1, Math.round(current * 1.25)) : 1;
+  } else if (rating === 'easy') {
+    scheduledDays = nextMochiInterval(current, 2.2);
+  } else {
+    scheduledDays = nextMochiInterval(current, 1.8);
+  }
+  const dueAt = now.getTime() + scheduledDays * 86400000;
+  return { ...next, scheduledDays, dueAt, rawJson: updateRawSchedule(next.rawJson, dueAt, scheduledDays) };
+}
+
+function nextMochiInterval(current: number, multiplier: number): number {
+  if (current <= 0) return 1;
+  const index = MOCHI_INTERVALS.indexOf(current);
+  if (index >= 0 && index < MOCHI_INTERVALS.length - 1) return MOCHI_INTERVALS[index + 1];
+  return Math.max(current + 1, Math.round(current * multiplier));
+}
+
+function updateRawSchedule(rawJson: string, dueAt: number, scheduledDays: number): string {
+  try {
+    const raw = JSON.parse(rawJson);
+    raw.dueAt = new Date(dueAt).toISOString(); raw.due = new Date(dueAt).toISOString();
+    raw.scheduledDays = scheduledDays; raw.scheduled_days = scheduledDays;
+    return JSON.stringify(raw);
+  } catch { return rawJson; }
 }
 
 function asState(cardId: string, objective: FsrsState['objective'], raw: any): FsrsState {

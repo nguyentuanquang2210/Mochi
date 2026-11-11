@@ -17,7 +17,7 @@ import { DeckOptionsMenu } from './components/DeckOptionsMenu';
 import { QuickAddCardModal } from './components/QuickAddCardModal';
 import { CardDetailBottomSheet } from './components/CardDetailBottomSheet';
 import type { CardSummary, Deck } from '../domain/types';
-import { CardRepository, DeckRepository } from '../data/repositories';
+import { CardRepository, DeckRepository, StudySessionRepository } from '../data/repositories';
 import { TOEIC_MAP } from '../data/toeicWordlist';
 import { DictionaryService, normalizeToStandardIpa } from '../services/dictionary';
 
@@ -316,21 +316,16 @@ export function DeckView({
     );
   };
 
+  // The large badge answers “how many cards are in this deck”; the menu below
+  // keeps the actionable new-card and due counts distinct.
   const reviewDueCount = dueCount;
+  const totalDeckCards = cards.length;
 
-  const handlePressReview = () => {
-    if (reviewDueCount === 0) {
-      Alert.alert(
-        'Đã ôn xong hôm nay 🎉',
-        `Bộ thẻ "${deck.name}" hiện không có từ nào đến hạn cần ôn theo Spaced Repetition.\n\nBạn có muốn vào chế độ "Ôn cấp tốc" (Cram Mode) để xem lại trước không?`,
-        [
-          { text: 'Để sau', style: 'cancel' },
-          { text: 'Ôn cấp tốc', onPress: () => onStartReview('cram') }
-        ]
-      );
-      return;
-    }
-    onStartReview('due');
+  const handlePressReview = async () => {
+    // The prominent deck action is always free practice across this deck.
+    // Start from card one every time; never resume an earlier free-practice run.
+    await StudySessionRepository.discardActive(deck.id, 'cram');
+    onStartReview('cram');
   };
 
   return (
@@ -355,10 +350,10 @@ export function DeckView({
               activeOpacity={0.8}
               onPress={handlePressReview}
             >
-              <Ionicons name="file-tray-full-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-              <Text style={styles.reviewBannerText}>Ôn tập</Text>
+              <MaterialCommunityIcons name="cards-outline" size={19} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <Text style={styles.reviewBannerText}>Ghi nhớ thẻ</Text>
               <View style={styles.reviewDarkBadge}>
-                <Text style={styles.reviewDarkBadgeText}>{reviewDueCount}</Text>
+                <Text style={styles.reviewDarkBadgeText}>{totalDeckCards}</Text>
               </View>
             </TouchableOpacity>
 
@@ -718,7 +713,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#353535',
     borderRadius: 12,
-    height: 48,
+    height: 46,
     shadowColor: '#000',
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -728,11 +723,11 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 18,
+    paddingLeft: 16,
     height: '100%'
   },
   reviewBannerText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
     marginRight: 8

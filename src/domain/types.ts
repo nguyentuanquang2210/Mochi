@@ -91,6 +91,26 @@ export interface ReviewLog {
   elapsedDays: number;
 }
 
+/** A direction is a separate memory trace.  It deliberately maps to a distinct
+ * FSRS objective, so recognising English does not mark English recall as known. */
+export type StudyDirection = 'meaning_en_vi' | 'meaning_vi_en';
+
+export interface StudyQueueItem {
+  card: CardSummary;
+  state: FsrsState;
+  direction: StudyDirection;
+  /** True after the one authoritative FSRS rating for this session item. */
+  fsrsRecorded?: boolean;
+  reReviewCount?: number;
+}
+
+export interface AdaptiveLearningSettings {
+  enabled: boolean;
+  dailyNewLimit: number;
+  targetMinutes: number;
+  lastSuggestedLimit?: number;
+}
+
 export interface ChartDataPoint {
   label: string;
   value: number;

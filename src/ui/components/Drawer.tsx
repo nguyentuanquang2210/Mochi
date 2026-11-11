@@ -20,10 +20,13 @@ interface DrawerProps {
   activeDeckId: string | null;
   activeView: string;
   inboxDueCount: number;
+  inboxNewCount: number;
+  deckCardCounts: Record<string, number>;
   trashCount: number;
   userName: string;
   onSelectDeck: (deckId: string) => void;
   onSelectView: (view: 'dashboard' | 'inbox' | 'import' | 'settings' | 'trash') => void;
+  onStartInboxReview: (mode: 'due' | 'new') => void;
   onCreateDeck: (name: string) => void;
 }
 
@@ -34,10 +37,13 @@ export function Drawer({
   activeDeckId,
   activeView,
   inboxDueCount,
+  inboxNewCount,
+  deckCardCounts,
   trashCount,
   userName,
   onSelectDeck,
   onSelectView,
+  onStartInboxReview,
   onCreateDeck
 }: DrawerProps) {
   const [searchFilter, setSearchFilter] = useState('');
@@ -121,6 +127,16 @@ export function Drawer({
                 </View>
               )}
             </TouchableOpacity>
+            <TouchableOpacity style={styles.inboxChild} onPress={() => { onStartInboxReview('due'); onClose(); }}>
+              <Ionicons name="checkmark-circle-outline" size={18} color="#888" style={styles.menuIcon} />
+              <Text style={styles.menuText}>Cần ôn hôm nay</Text>
+              <View style={styles.countBadge}><Text style={styles.countBadgeText}>{inboxDueCount}</Text></View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.inboxChild} onPress={() => { onStartInboxReview('new'); onClose(); }}>
+              <Feather name="circle" size={17} color="#999" style={styles.menuIcon} />
+              <Text style={styles.menuText}>Thẻ mới</Text>
+              <View style={styles.countBadge}><Text style={styles.countBadgeText}>{inboxNewCount}</Text></View>
+            </TouchableOpacity>
 
             {/* DECKS Section */}
             <View style={styles.sectionHeader}>
@@ -148,6 +164,7 @@ export function Drawer({
                   <Text numberOfLines={1} style={[styles.deckName, isSelected && styles.deckNameActive]}>
                     {deck.name}
                   </Text>
+                  <View style={styles.countBadge}><Text style={styles.countBadgeText}>{deckCardCounts[deck.id] || 0}</Text></View>
                 </TouchableOpacity>
               );
             })}
@@ -304,6 +321,9 @@ const styles = StyleSheet.create({
   },
   menuItemActive: {
     backgroundColor: '#EBEBEB'
+  },
+  inboxChild: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 9, paddingLeft: 26, paddingRight: 10, borderRadius: 8
   },
   menuIcon: {
     marginRight: 12

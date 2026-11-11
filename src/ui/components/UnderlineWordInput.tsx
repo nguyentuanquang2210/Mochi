@@ -25,7 +25,8 @@ export function UnderlineWordInput({
   targetWord,
   onComplete,
   hintLettersCount = 0,
-  autoFocus = true,
+  // Learners choose when to type; never interrupt listening with a keyboard.
+  autoFocus = false,
   disabled = false,
   style
 }: UnderlineWordInputProps) {
@@ -89,6 +90,8 @@ export function UnderlineWordInput({
       } else {
         setEvaluation('incorrect');
         triggerShake();
+        // Keep the correction visible and free up the screen before showing it.
+        Keyboard.dismiss();
         onComplete(false, cleaned);
       }
     } else {
@@ -170,12 +173,18 @@ export function UnderlineWordInput({
           autoCapitalize="none"
           autoCorrect={false}
           spellCheck={false}
+          autoComplete="off"
+          textContentType="none"
+          importantForAutofill="no"
           autoFocus={autoFocus}
           editable={!disabled && evaluation !== 'correct'}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           style={styles.hiddenInput}
-          keyboardType={Platform.OS === 'ios' ? 'ascii-capable' : 'email-address'}
+          // This prevents predictive/Vietnamese text transformation where the
+          // platform supports it. Android does not permit an app to forcibly
+          // change the user's selected IME language.
+          keyboardType={Platform.OS === 'ios' ? 'ascii-capable' : 'visible-password'}
         />
 
         {/* Khung hiển thị các chữ cái phía trên dấu gạch chân chuẩn theo ảnh mẫu */}
@@ -243,6 +252,7 @@ export function UnderlineWordInput({
               onPress={() => {
                 setTypedText(lettersOnly);
                 setEvaluation('incorrect');
+                Keyboard.dismiss();
               }}
               activeOpacity={0.7}
             >

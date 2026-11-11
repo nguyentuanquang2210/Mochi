@@ -61,6 +61,27 @@ export async function database() {
     CREATE TABLE IF NOT EXISTS saved_views (id TEXT PRIMARY KEY, name TEXT NOT NULL, query_json TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS note_links (source_card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, target_card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE, PRIMARY KEY(source_card_id, target_card_id));
     CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS study_sessions (
+      id TEXT PRIMARY KEY,
+      deck_id TEXT,
+      review_mode TEXT NOT NULL,
+      queue_json TEXT NOT NULL,
+      current_index INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_study_sessions_active ON study_sessions(deck_id, review_mode, completed_at, updated_at);
+    CREATE TABLE IF NOT EXISTS learning_load_history (
+      id TEXT PRIMARY KEY,
+      recorded_at INTEGER NOT NULL,
+      suggested_new_limit INTEGER NOT NULL,
+      actual_new_count INTEGER NOT NULL DEFAULT 0,
+      due_count INTEGER NOT NULL DEFAULT 0,
+      rereview_count INTEGER NOT NULL DEFAULT 0,
+      study_seconds INTEGER NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id, archived_at, trashed_at);
     CREATE INDEX IF NOT EXISTS idx_cards_search ON cards(front, back, content);
     CREATE INDEX IF NOT EXISTS idx_card_tags_tag ON card_tags(tag_id, card_id);
@@ -120,6 +141,16 @@ async function safeMigrate(connection: SQLite.SQLiteDatabase) {
       created_at INTEGER NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_img_keyword ON image_cache(keyword);
+    CREATE TABLE IF NOT EXISTS study_sessions (
+      id TEXT PRIMARY KEY, deck_id TEXT, review_mode TEXT NOT NULL, queue_json TEXT NOT NULL,
+      current_index INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, completed_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_study_sessions_active ON study_sessions(deck_id, review_mode, completed_at, updated_at);
+    CREATE TABLE IF NOT EXISTS learning_load_history (
+      id TEXT PRIMARY KEY, recorded_at INTEGER NOT NULL, suggested_new_limit INTEGER NOT NULL,
+      actual_new_count INTEGER NOT NULL DEFAULT 0, due_count INTEGER NOT NULL DEFAULT 0,
+      rereview_count INTEGER NOT NULL DEFAULT 0, study_seconds INTEGER NOT NULL DEFAULT 0, reason TEXT NOT NULL
+    );
   `);
 
   // Tự động bổ sung phiên âm IPA cho tất cả các thẻ đã có sẵn trong CSDL

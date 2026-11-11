@@ -1,7 +1,7 @@
 import { database, withTransaction } from './database';
 import * as Crypto from 'expo-crypto';
 import { newFsrsState, schedule } from '../domain/fsrs';
-import type { Card, CardSummary, ChartDataPoint, DashboardStats, Deck, FsrsState, LearningObjective, Rating, SavedView } from '../domain/types';
+import type { AdaptiveLearningSettings, Card, CardSummary, ChartDataPoint, DashboardStats, Deck, FsrsState, LearningObjective, Rating, SavedView, StudyDirection, StudyQueueItem } from '../domain/types';
 
 const id = () => Crypto.randomUUID();
 
@@ -69,6 +69,16 @@ const asState = (r: any): FsrsState => ({
   lapses: r.lapses,
   lastReviewAt: r.last_review_at,
   rawJson: r.raw_json
+});
+
+const reverseCard = (card: CardSummary): CardSummary => ({
+  ...card,
+  front: card.back,
+  back: card.front,
+  content: `${card.back}\n---\n${card.front}`,
+  sides: [card.back, card.front],
+  hiddenSidesCount: 1,
+  objective: 'meaning_vi_en'
 });
 
 export const DeckRepository = {
@@ -339,7 +349,10 @@ export const CardRepository = {
       args.push(deckId);
     }
 
-    const effectiveNewLimit = newCardsLimit ?? (deckId ? 200 : 20);
+    // Due cards are deliberately uncapped. Only the daily admission of *new*
+    // cards is limited; this prevents an adaptive setting from hiding reviews.
+    const adaptive = await AdaptiveLearningRepository.getSettings();
+    let effectiveNewLimit = newCardsLimit ?? adaptive.dailyNewLimit;
 
     // 1. Lấy toàn bộ thẻ đến hạn ôn tập hôm nay (bắt buộc phải ôn để không quên)
     const dueSql = `
@@ -353,6 +366,21 @@ export const CardRepository = {
       ORDER BY f.due_at ASC
     `;
     const dueRows = await db.getAllAsync<any>(dueSql, ...args, Date.now() + 60000);
+
+    if (newCardsLimit === undefined && adaptive.enabled) {
+      const since = Date.now() - 7 * 86400000;
+      const performance = await db.getFirstAsync<{ total: number; good: number; days: number }>(
+        `SELECT COUNT(*) total, SUM(CASE WHEN rating IN ('good','easy') THEN 1 ELSE 0 END) good,
+                COUNT(DISTINCT date(reviewed_at / 1000, 'unixepoch', 'localtime')) days
+         FROM review_logs WHERE reviewed_at >= ?`, since);
+      const suggestion = await AdaptiveLearningRepository.suggest({
+        dueCount: dueRows.length,
+        averageSeconds: 18, // response duration is optional telemetry; conservative until collected
+        retention7d: performance?.total ? (performance.good || 0) / performance.total : undefined,
+        activeDays7d: performance?.days
+      });
+      effectiveNewLimit = suggestion.limit;
+    }
 
     // 2. Lấy thẻ mới (khi người dùng chọn bộ thẻ cụ thể hoặc đặt lại lịch, lấy toàn bộ thẻ để ôn luyện đầy đủ)
     const newSql = `
@@ -369,10 +397,44 @@ export const CardRepository = {
     const newRows = await db.getAllAsync<any>(newSql, ...args, effectiveNewLimit);
 
     const combined = [...dueRows, ...newRows];
-    return combined.map(r => ({
+    const forward: StudyQueueItem[] = combined.map(r => ({
       card: asCardSummary(r),
-      state: asState(r)
+      state: asState(r),
+      direction: 'meaning_en_vi'
     }));
+    // Reverse is opt-in per card. Its state is created only when needed and is
+    // never copied from the forward direction.
+    const reverse = await this.getReverseDueItems(deckId, filters, args);
+    return [...forward, ...reverse];
+  },
+
+  async getReverseDueItems(deckId: string | undefined, baseFilters?: string[], baseArgs?: any[]): Promise<StudyQueueItem[]> {
+    const db = await database();
+    const filters = baseFilters ? [...baseFilters] : ['c.trashed_at IS NULL', 'c.archived_at IS NULL'];
+    const args = baseArgs ? [...baseArgs] : [];
+    if (!baseFilters && deckId) { filters.push('c.deck_id = ?'); args.push(deckId); }
+    filters.push('c.review_reverse = 1');
+    const rows = await db.getAllAsync<any>(`
+      SELECT c.*, f.state, f.due_at, f.stability, f.difficulty, f.elapsed_days, f.scheduled_days,
+             f.reps, f.lapses, f.last_review_at, f.raw_json
+      FROM cards c LEFT JOIN fsrs_states f
+        ON f.card_id = c.id AND f.objective = 'meaning_vi_en'
+      WHERE ${filters.join(' AND ')}
+        AND (f.card_id IS NULL OR f.state = 'new' OR f.due_at <= ?)
+      ORDER BY COALESCE(f.due_at, c.created_at) ASC`, ...args, Date.now() + 60000);
+    const result: StudyQueueItem[] = [];
+    for (const row of rows) {
+      let state: FsrsState;
+      if (row.raw_json) state = asState(row);
+      else {
+        state = await newFsrsState();
+        state.cardId = row.id;
+        state.objective = 'meaning_vi_en';
+        await withTransaction(tx => persistState(tx, state));
+      }
+      result.push({ card: reverseCard(asCardSummary(row)), state, direction: 'meaning_vi_en' });
+    }
+    return result;
   },
 
   async getNewCards(deckId?: string): Promise<{ card: CardSummary; state: FsrsState }[]> {
@@ -509,7 +571,7 @@ export const CardRepository = {
       args.push(deckId);
     }
 
-    const effectiveNewLimit = newCardsLimit ?? (deckId ? 200 : 20);
+    const effectiveNewLimit = newCardsLimit ?? (await AdaptiveLearningRepository.getSettings()).dailyNewLimit;
 
     // Đếm thẻ đến hạn
     const dueRow = await db.getFirstAsync<{ count: number }>(
@@ -528,6 +590,19 @@ export const CardRepository = {
     return dueCount + newCount;
   },
 
+  /** FSRS reviews only; unlike countDue this never includes new-card admission. */
+  async countReviewsDue(deckId?: string): Promise<number> {
+    const db = await database();
+    const filters = ['c.trashed_at IS NULL', 'c.archived_at IS NULL', "f.state != 'new'", 'f.due_at <= ?'];
+    const args: any[] = [Date.now() + 60000];
+    if (deckId) { filters.push('c.deck_id = ?'); args.push(deckId); }
+    const row = await db.getFirstAsync<{ count: number }>(
+      `SELECT COUNT(*) count FROM cards c JOIN fsrs_states f ON f.card_id = c.id WHERE ${filters.join(' AND ')}`,
+      ...args
+    );
+    return row?.count ?? 0;
+  },
+
   async countNew(deckId?: string): Promise<number> {
     const db = await database();
     let sql = `
@@ -541,6 +616,15 @@ export const CardRepository = {
       sql += ' AND c.deck_id = ?';
       args.push(deckId);
     }
+    const row = await db.getFirstAsync<{ count: number }>(sql, ...args);
+    return row?.count ?? 0;
+  },
+
+  async countActive(deckId?: string): Promise<number> {
+    const db = await database();
+    let sql = 'SELECT COUNT(*) count FROM cards WHERE trashed_at IS NULL AND archived_at IS NULL';
+    const args: string[] = [];
+    if (deckId) { sql += ' AND deck_id = ?'; args.push(deckId); }
     const row = await db.getFirstAsync<{ count: number }>(sql, ...args);
     return row?.count ?? 0;
   },
@@ -932,6 +1016,99 @@ export const ViewRepository = {
     await db.runAsync('INSERT INTO saved_views (id, name, query_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       view.id, view.name, JSON.stringify(query), now, now);
     return view;
+  }
+};
+
+/** Durable, short-term study state.  This is intentionally separate from FSRS:
+ * restoring it after an app close never changes due dates or inserts revlogs. */
+export const StudySessionRepository = {
+  async discardActive(deckId: string | undefined, reviewMode: string): Promise<void> {
+    const db = await database();
+    const now = Date.now();
+    await db.runAsync(
+      `UPDATE study_sessions SET completed_at = ?, updated_at = ?
+       WHERE deck_id ${deckId ? '= ?' : 'IS NULL'} AND review_mode = ? AND completed_at IS NULL`,
+      ...(deckId ? [now, now, deckId, reviewMode] : [now, now, reviewMode])
+    );
+  },
+  async loadActive(deckId: string | undefined, reviewMode: string): Promise<{ id: string; queue: StudyQueueItem[]; currentIndex: number } | null> {
+    const db = await database();
+    const row = await db.getFirstAsync<any>(
+      `SELECT * FROM study_sessions WHERE deck_id ${deckId ? '= ?' : 'IS NULL'} AND review_mode = ? AND completed_at IS NULL ORDER BY updated_at DESC LIMIT 1`,
+      ...(deckId ? [deckId, reviewMode] : [reviewMode])
+    );
+    if (!row) return null;
+    try {
+      const queue = JSON.parse(row.queue_json) as StudyQueueItem[];
+      // An empty queue must never become a permanent, resumable session.
+      if (queue.length === 0 || row.current_index >= queue.length) {
+        await db.runAsync('UPDATE study_sessions SET completed_at = ?, updated_at = ? WHERE id = ?', Date.now(), Date.now(), row.id);
+        return null;
+      }
+      return { id: row.id, queue, currentIndex: row.current_index };
+    } catch { return null; }
+  },
+  async save(input: { id?: string; deckId?: string; reviewMode: string; queue: StudyQueueItem[]; currentIndex: number }): Promise<string> {
+    const db = await database(); const now = Date.now(); const sessionId = input.id || id();
+    await db.runAsync(
+      `INSERT INTO study_sessions (id, deck_id, review_mode, queue_json, current_index, created_at, updated_at, completed_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+       ON CONFLICT(id) DO UPDATE SET queue_json=excluded.queue_json, current_index=excluded.current_index, updated_at=excluded.updated_at`,
+      sessionId, input.deckId || null, input.reviewMode, JSON.stringify(input.queue), input.currentIndex, now, now
+    );
+    return sessionId;
+  },
+  async complete(sessionId: string | null): Promise<void> {
+    if (!sessionId) return;
+    const db = await database();
+    const session = await db.getFirstAsync<any>('SELECT * FROM study_sessions WHERE id = ?', sessionId);
+    const now = Date.now();
+    await db.runAsync('UPDATE study_sessions SET completed_at = ?, updated_at = ? WHERE id = ?', now, now, sessionId);
+    if (!session) return;
+    try {
+      const queue = JSON.parse(session.queue_json) as StudyQueueItem[];
+      const reviewed = queue.filter(item => item.fsrsRecorded);
+      const settings = await AdaptiveLearningRepository.getSettings();
+      await db.runAsync(
+        `INSERT INTO learning_load_history (id, recorded_at, suggested_new_limit, actual_new_count, due_count, rereview_count, study_seconds, reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        id(), now, settings.lastSuggestedLimit ?? settings.dailyNewLimit,
+        reviewed.filter(item => item.state.reps === 1).length,
+        reviewed.filter(item => item.state.reps > 1).length,
+        queue.reduce((sum, item) => sum + (item.reReviewCount || 0), 0),
+        Math.max(0, Math.round((now - session.created_at) / 1000)),
+        settings.enabled ? 'Kết quả phiên học dùng cho đề xuất từ mới.' : 'Người dùng đặt giới hạn thủ công.'
+      );
+    } catch { /* A corrupt historical session must not prevent completion. */ }
+  }
+};
+
+/** Adaptive learning only proposes a new-card allowance; FSRS remains the sole
+ * owner of state, stability, difficulty and due dates. */
+export const AdaptiveLearningRepository = {
+  async getSettings(): Promise<AdaptiveLearningSettings> {
+    const db = await database();
+    const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM user_settings WHERE key = 'adaptiveLearning'");
+    return row ? { enabled: true, dailyNewLimit: 10, targetMinutes: 15, ...JSON.parse(row.value) } : { enabled: true, dailyNewLimit: 10, targetMinutes: 15 };
+  },
+  async saveSettings(settings: AdaptiveLearningSettings): Promise<void> {
+    const db = await database();
+    await db.runAsync("INSERT INTO user_settings(key,value) VALUES('adaptiveLearning',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", JSON.stringify(settings));
+  },
+  async suggest(today: { dueCount: number; averageSeconds: number; retention7d?: number; activeDays7d?: number }): Promise<{ limit: number; reason: string }> {
+    const settings = await this.getSettings();
+    if (!settings.enabled) return { limit: settings.dailyNewLimit, reason: 'Bạn đang tự đặt số từ mới mỗi ngày.' };
+    const dailySeconds = Math.max(60, settings.targetMinutes * 60);
+    const dueCost = today.dueCount * Math.max(8, today.averageSeconds || 18);
+    let limit = settings.dailyNewLimit;
+    let reason = 'Khối lượng học đang ổn định.';
+    if (dueCost >= dailySeconds * 0.85) { limit = 0; reason = 'Ưu tiên thẻ đến hạn vì thời gian ôn đã gần vượt mục tiêu.'; }
+    else if ((today.retention7d ?? 0.85) < 0.7 || (today.activeDays7d ?? 7) < 3) { limit = Math.max(1, limit - 2); reason = 'Giảm nhẹ từ mới theo xu hướng ghi nhớ hoặc duy trì gần đây.'; }
+    else if ((today.retention7d ?? 0) >= 0.9 && (today.activeDays7d ?? 0) >= 5 && dueCost < dailySeconds * 0.55) { limit = Math.min(50, limit + 1); reason = 'Tăng nhẹ vì bạn nhớ tốt và còn thời gian học.'; }
+    if (settings.lastSuggestedLimit !== limit) {
+      await this.saveSettings({ ...settings, lastSuggestedLimit: limit });
+    }
+    return { limit, reason };
   }
 };
 

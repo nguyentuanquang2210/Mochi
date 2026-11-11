@@ -32,12 +32,16 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<'deck' | 'dashboard' | 'search' | 'create' | 'edit' | 'review' | 'trash' | 'settings' | 'import'>('deck');
   const [reviewMode, setReviewMode] = useState<'due' | 'new' | 'cram'>('due');
+  // Inbox is global; a review launched from a deck remains scoped to that deck.
+  const [reviewDeckId, setReviewDeckId] = useState<string | null | undefined>(undefined);
   const [reviewVersion, setReviewVersion] = useState(0);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [activeDeckId, setActiveDeckId] = useState<string | null>(null);
   const [cards, setCards] = useState<CardSummary[]>([]);
   const [allCards, setAllCards] = useState<CardSummary[]>([]);
   const [inboxDueCount, setInboxDueCount] = useState(0);
+  const [inboxNewCount, setInboxNewCount] = useState(0);
+  const [deckCardCounts, setDeckCardCounts] = useState<Record<string, number>>({});
   const [deckDueCount, setDeckDueCount] = useState(0);
   const [newCardsCount, setNewCardsCount] = useState(0);
   const [trashCount, setTrashCount] = useState(0);
@@ -71,6 +75,8 @@ export default function App() {
   const refreshData = async (preferredDeckId?: string) => {
     const allDecks = await DeckRepository.all();
     setDecks(allDecks);
+    const perDeckCounts = await Promise.all(allDecks.map(async deck => [deck.id, await CardRepository.countActive(deck.id)] as const));
+    setDeckCardCounts(Object.fromEntries(perDeckCounts));
 
     // Default to 'When' deck if available, else first deck
     let targetDeckId = preferredDeckId || activeDeckId;
@@ -93,8 +99,9 @@ export default function App() {
       setDeckDueCount(0);
     }
 
-    const totalDue = await CardRepository.countDue();
+    const totalDue = await CardRepository.countReviewsDue();
     setInboxDueCount(totalDue);
+    setInboxNewCount(await CardRepository.countNew());
 
     const totalTrashed = await CardRepository.countTrashed();
     setTrashCount(totalTrashed);
@@ -123,6 +130,7 @@ export default function App() {
       setCurrentView('search');
     } else if (tab === 'inbox') {
       setReviewMode('due');
+      setReviewDeckId(null);
       setReviewVersion(v => v + 1);
       setCurrentView('review');
     } else if (tab === 'create') {
@@ -186,8 +194,8 @@ export default function App() {
     if (currentView === 'review') {
       return (
         <Review
-          key={`${activeDeck?.id || 'all'}-${reviewMode}-${reviewVersion}`}
-          deck={activeDeck}
+          key={`${reviewDeckId === null ? 'all' : activeDeck?.id || 'all'}-${reviewMode}-${reviewVersion}`}
+          deck={reviewDeckId === null ? null : activeDeck}
           reviewMode={reviewMode}
           onDone={() => {
             refreshData();
@@ -283,6 +291,7 @@ export default function App() {
         onOpenDrawer={() => setDrawerVisible(true)}
         onStartReview={(mode) => {
           setReviewMode(mode || 'due');
+          setReviewDeckId(activeDeck.id);
           setCurrentView('review');
         }}
         onOpenCreateCard={() => {
@@ -330,10 +339,13 @@ export default function App() {
         activeDeckId={activeDeckId}
         activeView={currentView}
         inboxDueCount={inboxDueCount}
+        inboxNewCount={inboxNewCount}
+        deckCardCounts={deckCardCounts}
         trashCount={trashCount}
         userName={userName}
         onSelectDeck={handleSelectDeck}
         onSelectView={handleSelectDrawerView}
+        onStartInboxReview={(mode) => { setReviewMode(mode); setReviewDeckId(null); setCurrentView('review'); }}
         onCreateDeck={handleCreateDeck}
       />
 

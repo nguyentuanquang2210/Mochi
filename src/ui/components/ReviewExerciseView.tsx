@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Animated,
   Image,
+  Keyboard,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -75,11 +76,14 @@ export function ReviewExerciseView({
   onNext
 }: ReviewExerciseViewProps) {
   const sides = card.sides && card.sides.length > 0 ? card.sides : [card.front, card.back].filter(Boolean);
-  const targetWord = (sides[0] || card.front || '').trim();
+  // A reverse card presents Vietnamese first but still requires the learner to
+  // produce the English word.  The FSRS objective is carried by the card clone.
+  const isReverse = card.objective === 'meaning_vi_en';
+  const targetWord = (isReverse ? (sides[1] || card.back) : (sides[0] || card.front) || '').trim();
   const coverImage = card.thumbnailUrl || card.imageUrl;
 
   // Trích xuất nghĩa tiếng Việt cô đọng kèm các nghĩa khác nếu có
-  const rawMeaning = sides[1] || card.back || '';
+  const rawMeaning = isReverse ? (sides[0] || card.front || '') : (sides[1] || card.back || '');
   const meaningData = extractMeanings(rawMeaning, targetWord);
   const cleanMeaning = meaningData.primaryMeaning;
   const otherMeanings = meaningData.otherMeanings;
@@ -170,6 +174,7 @@ export function ReviewExerciseView({
         onAnswer('good');
       }, 1200);
     } else {
+      Keyboard.dismiss();
       // Khi trả lời sai: phát âm từ chuẩn xác để người dùng nghe và ghi nhớ
       SpeechService.speak(targetWord);
       // Giữ hiển thị khung kết quả kèm nút "Đã hiểu & Ôn lại ở cuối phiên"
@@ -194,6 +199,12 @@ export function ReviewExerciseView({
 
     return (
       <View style={styles.errorFeedbackCard}>
+        <Image
+          source={require('../../../assets/mascot-learning.jpeg')}
+          style={styles.errorMascot}
+          resizeMode="contain"
+          accessibilityLabel="Mascot khuyến khích khi trả lời chưa đúng"
+        />
         <View style={styles.errorFeedbackHeader}>
           <Ionicons name="close-circle" size={22} color="#DC2626" />
           <Text style={styles.errorFeedbackTitle}>Chưa chính xác!</Text>
@@ -362,13 +373,10 @@ export function ReviewExerciseView({
               targetWord={targetWord}
               onComplete={handleInputComplete}
               hintLettersCount={0}
-              autoFocus
+              autoFocus={false}
             />
           </View>
         )}
-
-        {/* Phản hồi kết quả đúng / sai & Học lại ở cuối phiên */}
-        {renderFeedbackSection()}
 
         {/* Gợi ý âm thanh */}
         <View style={styles.audioHintRow}>
@@ -399,12 +407,9 @@ export function ReviewExerciseView({
           <UnderlineWordInput
             targetWord={targetWord}
             onComplete={handleInputComplete}
-            autoFocus
+            autoFocus={false}
           />
         </View>
-
-        {/* Phản hồi kết quả đúng / sai & Học lại ở cuối phiên */}
-        {renderFeedbackSection()}
 
         {/* Gợi ý nghĩa nếu người dùng gặp khó */}
         <Text style={styles.listeningMeaningHint}>
@@ -511,12 +516,15 @@ export function ReviewExerciseView({
           <UnderlineWordInput
             targetWord={targetWord}
             onComplete={handleInputComplete}
-            autoFocus
+            autoFocus={false}
           />
         </View>
 
-        {/* Phản hồi đúng / sai & Học lại ở cuối phiên */}
-        {renderFeedbackSection()}
+        <View style={styles.audioHintRow}>
+          <SpeakerButton text={targetWord} size={22} color="#475569" activeColor="#2563EB" />
+          <Text style={styles.audioHintText}>Nghe gợi ý phát âm</Text>
+        </View>
+
       </View>
     );
   }
@@ -552,7 +560,7 @@ export function ReviewExerciseView({
             key={`wf-${card.id}-${familyTarget}`}
             targetWord={familyTarget}
             onComplete={handleInputComplete}
-            autoFocus
+            autoFocus={false}
           />
         </View>
 
@@ -932,6 +940,13 @@ const styles = StyleSheet.create({
     padding: 14,
     marginTop: 16,
     width: '100%'
+  },
+  errorMascot: {
+    width: 116,
+    height: 116,
+    alignSelf: 'center',
+    marginTop: -4,
+    marginBottom: 2
   },
   errorFeedbackHeader: {
     flexDirection: 'row',

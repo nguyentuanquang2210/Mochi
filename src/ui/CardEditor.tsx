@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,9 +14,13 @@ import {
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from './components/Icons';
 import { SpeakerButton } from './components/SpeakerButton';
+import { ImagePickerSection } from './components/ImagePickerSection';
+import { MultiSenseSelector } from './components/MultiSenseSelector';
 import type { CardSummary, Deck } from '../domain/types';
 import { CardRepository } from '../data/repositories';
-import { DictionaryService } from '../services/dictionary';
+import { DictionaryService, AggregatedWordEntry } from '../services/dictionary';
+import { ImageSearchService } from '../services/imageSearch';
+import type { ImageItem } from '../domain/types';
 
 interface CardEditorProps {
   card?: CardSummary | null;
@@ -36,17 +41,44 @@ export function CardEditor({
   const [content, setContent] = useState(
     card ? card.content || (card.back ? `${card.front}\n---\n${card.back}` : card.front) : ''
   );
+  const initialSides = (card ? card.content || `${card.front}\n---\n${card.back || ''}` : '').split(/\n\s*---\s*\n/);
+  const [quickFront, setQuickFront] = useState((initialSides[0] || '').trim());
+  const [quickBack, setQuickBack] = useState(initialSides.slice(1).join('\n---\n').trim());
+  const [showAdvancedEditor, setShowAdvancedEditor] = useState(Boolean(card));
   const [tagsInput, setTagsInput] = useState(card ? card.tags.join(' ') : '');
   const [isPinned, setIsPinned] = useState(card ? card.isPinned : false);
   const [reviewReverse, setReviewReverse] = useState(card ? card.reviewReverse : false);
   const [saving, setSaving] = useState(false);
   const [showDeckPicker, setShowDeckPicker] = useState(false);
+  const [dictionaryEntry, setDictionaryEntry] = useState<AggregatedWordEntry | null>(null);
+  const [selectedSenseIds, setSelectedSenseIds] = useState<Set<string>>(new Set());
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionImages, setSuggestionImages] = useState<ImageItem[]>([]);
+  const [selectedImage, setSelectedImage] = useState<ImageItem | null>(
+    card?.imageUrl ? { id: 'current', url: card.imageUrl, thumbnailUrl: card.thumbnailUrl || card.imageUrl, source: 'wikimedia' } : null
+  );
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   // Parse sides live for preview
   const previewSides = content
     .split(/\n\s*---\s*\n/)
     .map(s => s.trim())
     .filter(Boolean);
+
+  const updateQuickFront = (value: string) => {
+    setQuickFront(value);
+    setContent(`${value}\n---\n${quickBack}`.trimEnd());
+  };
+  const updateQuickBack = (value: string) => {
+    setQuickBack(value);
+    setContent(`${quickFront}\n---\n${value}`.trimEnd());
+  };
 
   const insertHelper = (syntax: string) => {
     if (syntax === '---') {
@@ -60,6 +92,40 @@ export function CardEditor({
     } else if (syntax === 'tag') {
       setTagsInput(prev => `${prev} #`);
     }
+  };
+
+  const loadWordSuggestions = async () => {
+    const word = previewSides[0] || '';
+    const validation = DictionaryService.validateSingleWord(word);
+    if (!validation.isValid) {
+      Alert.alert('Gợi ý từ điển dành cho một từ', 'Bạn vẫn có thể lưu và học cụm từ hoặc đoạn tiếng Anh bình thường. Tính năng gợi ý nghĩa/câu ví dụ tự động hiện chỉ dùng khi mặt trước là một từ tiếng Anh.');
+      return;
+    }
+    setSuggestionsLoading(true);
+    try {
+      const [entry, images] = await Promise.all([
+        DictionaryService.lookupAggregatedWord(validation.cleanWord),
+        ImageSearchService.searchImages(validation.cleanWord, previewSides[1] || '')
+      ]);
+      setDictionaryEntry(entry);
+      const translated = entry.senses.filter(s => Boolean(s.meaningVi?.trim()));
+      const matching = translated.filter(s => (previewSides[1] || '').toLowerCase().includes(s.meaningVi.toLowerCase()));
+      setSelectedSenseIds(new Set((matching.length ? matching : translated.slice(0, 1)).map(s => s.id)));
+      setSuggestionImages(images);
+    } catch {
+      Alert.alert('Chưa có gợi ý', 'Không thể tải từ điển hoặc ảnh lúc này. Bạn vẫn có thể tự nhập nội dung thẻ.');
+    } finally { setSuggestionsLoading(false); }
+  };
+
+  const insertSelectedSenses = () => {
+    const selected = dictionaryEntry?.senses.filter(s => selectedSenseIds.has(s.id)) || [];
+    if (!selected.length) return;
+    const hidden = DictionaryService.formatHiddenSideFromSenses(selected);
+    setContent(prev => {
+      const sides = prev.split(/\n\s*---\s*\n/);
+      const front = (sides[0] || '').trim();
+      return `${front}\n---\n${hidden}`;
+    });
   };
 
   const handleSave = async () => {
@@ -99,8 +165,8 @@ export function CardEditor({
           reviewReverse,
           ipaUs: ipaUs || card.ipaUs,
           ipaUk: ipaUk || card.ipaUk,
-          imageUrl: card.imageUrl,
-          thumbnailUrl: card.thumbnailUrl
+          imageUrl: selectedImage?.url || null,
+          thumbnailUrl: selectedImage?.thumbnailUrl || null
         });
       } else {
         await CardRepository.create({
@@ -110,7 +176,9 @@ export function CardEditor({
           isPinned,
           reviewReverse,
           ipaUs,
-          ipaUk
+          ipaUk,
+          imageUrl: selectedImage?.url || null,
+          thumbnailUrl: selectedImage?.thumbnailUrl || null
         });
       }
       onSave();
@@ -174,8 +242,8 @@ export function CardEditor({
         </View>
       )}
 
-      {/* Formatting Toolbar */}
-      <View style={styles.toolbar}>
+      {/* Formatting tools disappear temporarily while typing to preserve space. */}
+      {!isKeyboardVisible && <View style={styles.toolbar}>
         <TouchableOpacity style={styles.toolBtn} onPress={() => insertHelper('---')}>
           <Text style={styles.toolBtnText}>+ Thêm mặt (---)</Text>
         </TouchableOpacity>
@@ -191,23 +259,103 @@ export function CardEditor({
         <TouchableOpacity style={styles.toolBtn} onPress={() => insertHelper('tag')}>
           <Text style={styles.toolBtnText}>#Tag</Text>
         </TouchableOpacity>
-      </View>
+      </View>}
 
-      <ScrollView contentContainerStyle={styles.editorScroll} showsVerticalScrollIndicator={false}>
-        {/* Editor Area */}
-        <Text style={styles.sectionLabel}>GHI CHÚ & NỘI DUNG THẺ (MARKDOWN)</Text>
+      <ScrollView
+        contentContainerStyle={[styles.editorScroll, isKeyboardVisible && styles.editorScrollTyping]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {/* Fast, keyboard-friendly form for new cards. Markdown remains optional. */}
+        {!showAdvancedEditor ? <>
+          <View style={styles.quickEditorIntro}>
+            <Text style={styles.quickEditorTitle}>Thêm từ mới</Text>
+            <Text style={styles.quickEditorSubtitle}>Nhập từ và nghĩa — không cần dùng dấu ---</Text>
+          </View>
+          <Text style={styles.quickLabel}>TỪ TIẾNG ANH</Text>
+          <TextInput
+            style={styles.quickFrontInput}
+            placeholder="Ví dụ: purchase / make a purchase / A short English sentence"
+            placeholderTextColor="#94A3B8"
+            value={quickFront}
+            onChangeText={updateQuickFront}
+            autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            returnKeyType="next"
+          />
+          <Text style={styles.quickLabel}>NGHĨA / CÂU VÍ DỤ</Text>
+          <TextInput
+            style={[styles.quickBackInput, isKeyboardVisible && styles.quickBackInputTyping]}
+            placeholder={'Ví dụ: mua hàng\n\n📝 I purchased a new book.\n(Tôi đã mua một cuốn sách mới.)'}
+            placeholderTextColor="#94A3B8"
+            value={quickBack}
+            onChangeText={updateQuickBack}
+            multiline
+            textAlignVertical="top"
+          />
+          {!isKeyboardVisible && <TouchableOpacity style={styles.advancedLink} onPress={() => setShowAdvancedEditor(true)}>
+            <Feather name="code" size={14} color="#64748B" style={{ marginRight: 5 }} />
+            <Text style={styles.advancedLinkText}>Dùng Markdown / thêm nhiều mặt thẻ</Text>
+          </TouchableOpacity>}
+        </> : <>
+        <View style={styles.editorLabelRow}>
+          <Text style={styles.sectionLabel}>NỘI DUNG THẺ (MARKDOWN)</Text>
+          {isKeyboardVisible && (
+            <TouchableOpacity onPress={() => Keyboard.dismiss()} style={styles.hideKeyboardBtn}>
+              <Feather name="chevron-down" size={15} color="#475569" />
+              <Text style={styles.hideKeyboardText}>Xong</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <TextInput
-          style={styles.contentInput}
+          style={[styles.contentInput, isKeyboardVisible && styles.contentInputTyping]}
           multiline
           placeholder="Nhập câu hỏi hoặc mặt trước thẻ...&#10;---&#10;Nhập đáp án (mặt ẩn tiếp theo)..."
           placeholderTextColor="#9E9E9E"
           value={content}
           onChangeText={setContent}
-          autoFocus={!card}
+          autoFocus={false}
         />
+        </>}
+
+        {!isKeyboardVisible && <TouchableOpacity
+          style={[styles.suggestionBtn, suggestionsLoading && { opacity: 0.55 }]}
+          disabled={suggestionsLoading}
+          onPress={loadWordSuggestions}
+        >
+          <Ionicons name="sparkles-outline" size={17} color="#FFFFFF" style={{ marginRight: 7 }} />
+          <Text style={styles.suggestionBtnText}>{suggestionsLoading ? 'Đang tìm nghĩa, ví dụ & ảnh...' : 'Gợi ý cho 1 từ: nghĩa, ví dụ & ảnh'}</Text>
+        </TouchableOpacity>}
+
+        {!isKeyboardVisible && dictionaryEntry && (
+          <>
+            <MultiSenseSelector
+              senses={dictionaryEntry.senses}
+              selectedSenseIds={selectedSenseIds}
+              onToggleSense={(senseId) => setSelectedSenseIds(prev => { const next = new Set(prev); next.has(senseId) ? next.delete(senseId) : next.add(senseId); return next; })}
+              onSelectAll={() => setSelectedSenseIds(new Set(dictionaryEntry.senses.filter(s => Boolean(s.meaningVi?.trim())).map(s => s.id)))}
+              onDeselectAll={() => setSelectedSenseIds(new Set())}
+              sources={dictionaryEntry.sources}
+            />
+            <TouchableOpacity style={styles.insertExamplesBtn} onPress={insertSelectedSenses}>
+              <Feather name="plus-circle" size={16} color="#1D4ED8" style={{ marginRight: 7 }} />
+              <Text style={styles.insertExamplesText}>Chèn nghĩa và câu ví dụ đã chọn</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {!isKeyboardVisible && <ImagePickerSection
+          images={suggestionImages}
+          selectedImageUrl={selectedImage?.url || null}
+          loading={suggestionsLoading}
+          onSelectImage={setSelectedImage}
+          onRetrySearch={loadWordSuggestions}
+        />}
 
         {/* Live Sides Preview */}
-        {previewSides.length > 0 && (
+        {!isKeyboardVisible && previewSides.length > 0 && (
           <View style={styles.previewContainer}>
             <Text style={styles.previewHeading}>
               XEM TRƯỚC CÁC MẶT ({previewSides.length} MẶT)
@@ -226,6 +374,7 @@ export function CardEditor({
           </View>
         )}
 
+        {!isKeyboardVisible && <>
         {/* Tags input */}
         <Text style={styles.sectionLabel}>THẺ PHÂN LOẠI (TAGS)</Text>
         <View style={styles.tagInputBox}>
@@ -270,6 +419,7 @@ export function CardEditor({
             />
           </View>
         </View>
+        </>}
 
         <View style={{ height: 60 }} />
       </ScrollView>
@@ -379,6 +529,15 @@ const styles = StyleSheet.create({
   editorScroll: {
     padding: 16
   },
+  editorScrollTyping: {
+    paddingTop: 10,
+    paddingBottom: 12
+  },
+  editorLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '700',
@@ -386,6 +545,69 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     marginBottom: 8,
     marginTop: 8
+  },
+  quickEditorIntro: {
+    padding: 14,
+    backgroundColor: '#EFF6FF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    marginBottom: 16
+  },
+  quickEditorTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1E3A8A'
+  },
+  quickEditorSubtitle: {
+    fontSize: 13,
+    color: '#475569',
+    marginTop: 3
+  },
+  quickLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.7,
+    color: '#64748B',
+    marginBottom: 7,
+    marginTop: 12
+  },
+  quickFrontInput: {
+    height: 52,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A'
+  },
+  quickBackInput: {
+    minHeight: 150,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#0F172A'
+  },
+  quickBackInputTyping: {
+    minHeight: 250,
+    borderColor: '#2563EB'
+  },
+  advancedLink: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingVertical: 12
+  },
+  advancedLinkText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '600'
   },
   contentInput: {
     backgroundColor: '#FFFFFF',
@@ -398,6 +620,57 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: '#222222',
     textAlignVertical: 'top'
+  },
+  contentInputTyping: {
+    minHeight: 220,
+    fontSize: 17,
+    lineHeight: 26,
+    borderColor: '#93C5FD'
+  },
+  hideKeyboardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9'
+  },
+  hideKeyboardText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginLeft: 3
+  },
+  suggestionBtn: {
+    marginTop: 10,
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
+    minHeight: 42,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  suggestionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  insertExamplesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    marginTop: 2
+  },
+  insertExamplesText: {
+    color: '#1D4ED8',
+    fontSize: 13,
+    fontWeight: '700'
   },
   previewContainer: {
     marginTop: 18

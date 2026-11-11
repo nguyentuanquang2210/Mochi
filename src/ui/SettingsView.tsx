@@ -12,8 +12,10 @@ import {
 import { Feather, Ionicons, MaterialCommunityIcons } from './components/Icons';
 import { Header } from './components/Header';
 import type { Deck } from '../domain/types';
-import { CardRepository } from '../data/repositories';
+import { AdaptiveLearningRepository, CardRepository } from '../data/repositories';
 import { SpeechService, SpeechAccent, POPULAR_VOICES, PopularVoice } from '../services/speech';
+import { StudyReminders } from '../services/studyReminders';
+import { MochiFile } from '../services/mochiFile';
 
 interface SettingsViewProps {
   userName: string;
@@ -42,6 +44,10 @@ export function SettingsView({
   const [deviceVoices, setDeviceVoices] = useState<Speech.Voice[]>([]);
   const [isTestingSpeech, setIsTestingSpeech] = useState(false);
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
+  const [adaptiveEnabled, setAdaptiveEnabled] = useState(true);
+  const [dailyNewLimit, setDailyNewLimit] = useState('10');
+  const [targetMinutes, setTargetMinutes] = useState('15');
+  const [remindersEnabled, setRemindersEnabled] = useState(false);
 
   useEffect(() => {
     const loadSpeechSettings = async () => {
@@ -56,6 +62,9 @@ export function SettingsView({
       setVoiceCount(voices.length);
     };
     loadSpeechSettings();
+    AdaptiveLearningRepository.getSettings().then(s => {
+      setAdaptiveEnabled(s.enabled); setDailyNewLimit(String(s.dailyNewLimit)); setTargetMinutes(String(s.targetMinutes));
+    });
   }, []);
 
   const handleChangeAccent = async (accent: SpeechAccent) => {
@@ -139,6 +148,30 @@ export function SettingsView({
     Alert.alert('Đã lưu', `Đã cập nhật tên người dùng thành ${name.trim()}`);
   };
 
+  const saveAdaptive = async (enabled = adaptiveEnabled) => {
+    const dailyNew = Math.max(0, Math.min(50, Number(dailyNewLimit) || 0));
+    const minutes = Math.max(5, Math.min(180, Number(targetMinutes) || 15));
+    await AdaptiveLearningRepository.saveSettings({ enabled, dailyNewLimit: dailyNew, targetMinutes: minutes });
+    setAdaptiveEnabled(enabled); setDailyNewLimit(String(dailyNew)); setTargetMinutes(String(minutes)); onRefresh();
+  };
+
+  const toggleReminders = async () => {
+    try {
+      if (remindersEnabled) {
+        await StudyReminders.cancel(); setRemindersEnabled(false);
+        Alert.alert('Đã tắt nhắc học', 'Các nhắc học đã lên lịch đã được hủy.');
+      } else {
+        const enabled = await StudyReminders.schedule();
+        setRemindersEnabled(enabled);
+        Alert.alert(enabled ? 'Đã bật nhắc học' : 'Cần cấp quyền', enabled
+          ? 'Mochi sẽ nhắc lúc 09:15, 14:15 và 19:15, tránh giờ nghỉ trưa và ban đêm.'
+          : 'Hãy cho phép thông báo trong cài đặt thiết bị để bật nhắc học.');
+      }
+    } catch {
+      Alert.alert('Chưa thể bật nhắc học', 'Hãy cập nhật Expo Go hoặc dùng bản ứng dụng đã build lại để bật thông báo. Phần học vẫn hoạt động bình thường.');
+    }
+  };
+
   const handleImportSubmit = async () => {
     if (!importText.trim() || !selectedDeckForImport) {
       Alert.alert('Thiếu thông tin', 'Vui lòng dán nội dung thẻ và chọn một bộ thẻ.');
@@ -160,6 +193,18 @@ export function SettingsView({
     setImportText('');
     setShowImportBox(false);
     onRefresh();
+  };
+
+  const handleMochiImport = async () => {
+    try {
+      const result = await MochiFile.importFromPicker();
+      if (result.cards) { await onRefresh(); Alert.alert('Nhập Mochi hoàn tất', `Đã nhập ${result.cards} thẻ trong ${result.decks} bộ thẻ.`); }
+    } catch (error: any) { Alert.alert('Không thể nhập file Mochi', error?.message || 'File không đúng định dạng .mochi.'); }
+  };
+
+  const handleMochiExport = async () => {
+    try { await MochiFile.exportAll(); }
+    catch { Alert.alert('Không thể xuất file', 'Thiết bị này chưa hỗ trợ chia sẻ file.'); }
   };
 
   return (
@@ -186,6 +231,34 @@ export function SettingsView({
               <Text style={styles.actionBtnText}>Lưu</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        <Text style={styles.sectionHeader}>NHẮC HỌC</Text>
+        <View style={styles.cardBox}>
+          <View style={styles.infoRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.infoTitle}>Thông báo học từ vựng</Text>
+              <Text style={styles.voiceDesc}>09:15 · 14:15 · 19:15 (giờ thiết bị)</Text>
+            </View>
+            <TouchableOpacity style={styles.actionBtn} onPress={toggleReminders}>
+              <Text style={styles.actionBtnText}>{remindersEnabled ? 'Tắt' : 'Bật'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Text style={styles.sectionHeader}>KHỐI LƯỢNG HỌC HẰNG NGÀY</Text>
+        <View style={styles.cardBox}>
+          <Text style={styles.infoTitle}>Tự động đề xuất từ mới</Text>
+          <Text style={styles.infoValue}>{adaptiveEnabled ? 'Đang bật' : 'Tắt — dùng giới hạn thủ công'}</Text>
+          <View style={styles.accentToggleRow}>
+            <TouchableOpacity style={[styles.accentBtn, adaptiveEnabled && styles.accentBtnActive]} onPress={() => saveAdaptive(true)}><Text style={styles.accentBtnText}>Tự động</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.accentBtn, !adaptiveEnabled && styles.accentBtnActive]} onPress={() => saveAdaptive(false)}><Text style={styles.accentBtnText}>Thủ công</Text></TouchableOpacity>
+          </View>
+          <Text style={styles.inputLabel}>TỪ MỚI / NGÀY (0–50)</Text>
+          <TextInput style={styles.textInput} value={dailyNewLimit} keyboardType="number-pad" onChangeText={setDailyNewLimit} onBlur={() => saveAdaptive()} />
+          <Text style={[styles.inputLabel, { marginTop: 12 }]}>MỤC TIÊU THỜI GIAN (PHÚT)</Text>
+          <TextInput style={styles.textInput} value={targetMinutes} keyboardType="number-pad" onChangeText={setTargetMinutes} onBlur={() => saveAdaptive()} />
+          <Text style={styles.voiceDesc}>Thẻ đến hạn luôn được ưu tiên; thiết lập này chỉ giới hạn thẻ mới.</Text>
         </View>
 
         {/* Spaced Repetition Algorithm */}
@@ -450,6 +523,16 @@ export function SettingsView({
         {/* Data & Import */}
         <Text style={styles.sectionHeader}>DỮ LIỆU & SAO LƯU</Text>
         <View style={styles.cardBox}>
+          <TouchableOpacity style={styles.menuRow} onPress={handleMochiImport}>
+            <Feather name="upload" size={17} color="#444444" style={{ marginRight: 10 }} />
+            <View style={{ flex: 1 }}><Text style={styles.menuRowText}>Nhập bộ thẻ Mochi (.mochi)</Text><Text style={styles.voiceDesc}>Giữ nội dung, tags và lịch đến hạn</Text></View>
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.menuRow} onPress={handleMochiExport}>
+            <Feather name="share-2" size={17} color="#444444" style={{ marginRight: 10 }} />
+            <View style={{ flex: 1 }}><Text style={styles.menuRowText}>Xuất dữ liệu dạng Mochi (.mochi)</Text><Text style={styles.voiceDesc}>Tạo file ZIP data.json tương thích Mochi</Text></View>
+          </TouchableOpacity>
+          <View style={styles.divider} />
           <TouchableOpacity
             style={styles.menuRow}
             onPress={() => setShowImportBox(!showImportBox)}

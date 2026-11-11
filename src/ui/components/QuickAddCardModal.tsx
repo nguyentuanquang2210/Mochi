@@ -371,20 +371,18 @@ export function QuickAddCardModal({
       return;
     }
 
-    // 1. Kiểm tra từ đầu vào: Chỉ chấp nhận 1 từ tiếng Anh duy nhất
+    // A card may be a word, phrase, sentence, or paragraph. Dictionary-only
+    // enrichment below remains opt-in for a single English headword.
     const validation = DictionaryService.validateSingleWord(frontText);
-    if (!validation.isValid) {
-      Alert.alert('Từ không hợp lệ', validation.errorMessage);
-      return;
-    }
+    const isSingleDictionaryWord = validation.isValid;
 
     // 2. Kiểm tra từ đã tồn tại trong danh sách học chưa
     try {
-      const duplicate = await CardRepository.findByFront(validation.cleanWord);
+      const duplicate = await CardRepository.findByFront(isSingleDictionaryWord ? validation.cleanWord : frontText);
       if (duplicate) {
         Alert.alert(
           'Từ đã tồn tại',
-          `Từ "${validation.cleanWord}" đã có trong danh sách học của bạn.`
+          `Nội dung "${frontText}" đã có trong danh sách học của bạn.`
         );
         return;
       }
@@ -398,9 +396,9 @@ export function QuickAddCardModal({
       let ipaUs = selectedIpaUs;
       let ipaUk = selectedIpaUk;
 
-      // Luôn tra cứu đảm bảo có IPA chuẩn 100% (cả khi người dùng gõ tay hoặc chọn gợi ý mà chưa kịp nạp)
+      // IPA, validation and auto-examples apply only to an individual word.
       let currentSides = [...sides];
-      if (!ipaUs && !ipaUk) {
+      if (isSingleDictionaryWord && !ipaUs && !ipaUk) {
         const dictInfo = await DictionaryService.lookupWord(validation.cleanWord);
         if (dictInfo.verified && (dictInfo.ipaUs || dictInfo.ipaUk)) {
           ipaUs = dictInfo.ipaUs || null;
@@ -438,7 +436,7 @@ export function QuickAddCardModal({
       }
 
       // Nếu mặt ẩn vẫn trống, tự động tra cứu để bổ sung đa nghĩa và các câu ví dụ tương ứng
-      if (currentSides.length <= 1 || !currentSides[1]?.trim()) {
+      if (isSingleDictionaryWord && (currentSides.length <= 1 || !currentSides[1]?.trim())) {
         try {
           const fullInfo = await DictionaryService.lookupWordFull(validation.cleanWord);
           if (fullInfo.verified) {

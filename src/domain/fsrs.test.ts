@@ -29,7 +29,7 @@ describe('Mochi FSRS Spaced Repetition', () => {
     expect(result.state.state).toBe('learning');
   });
 
-  it('resets card back to day ~4-5 when reviewed after reset (not continuing old intervals)', async () => {
+  it('resets card to the first one-day Mochi step, not its former interval', async () => {
     const now = new Date('2026-11-07T00:00:00Z');
     // Giả sử thẻ cũ đã học 3 lần và có stability cao
     const oldState: any = {
@@ -48,11 +48,10 @@ describe('Mochi FSRS Spaced Repetition', () => {
     };
 
     // Khi ôn tập thẻ này với 'good', vì state='new' và reps=0 (đã reset),
-    // hệ thống PHẢI coi là thẻ mới tinh và cho scheduledDays ~ 4-5 ngày (không phải 30+ ngày)
+    // hệ thống PHẢI coi là thẻ mới tinh và cho scheduledDays = 1 ngày (không phải 30+ ngày)
     const result = await schedule(oldState, 'good', now);
     expect(result.state.reps).toBe(1);
-    expect(result.state.scheduledDays).toBeLessThanOrEqual(6);
-    expect(result.state.scheduledDays).toBeGreaterThanOrEqual(3);
+    expect(result.state.scheduledDays).toBe(1);
   });
 
   it('correctly parses multiple hidden sides with ---', () => {
@@ -67,5 +66,25 @@ describe('Mochi FSRS Spaced Repetition', () => {
 
     const hiddenSidesCount = Math.max(0, sides.length - 1);
     expect(hiddenSidesCount).toBe(3);
+  });
+
+  it('uses the requested Mochi interval ladder on successful recall', async () => {
+    const now = new Date('2026-11-07T00:00:00Z');
+    let state = await newFsrsState(now);
+    const intervals: number[] = [];
+    for (let i = 0; i < 9; i++) {
+      const result = await schedule(state, 'good', now);
+      state = result.state; intervals.push(state.scheduledDays);
+    }
+    expect(intervals).toEqual([1, 2, 4, 7, 13, 23, 42, 76, 137]);
+  });
+
+  it('brings even a mature forgotten card back tomorrow for relearning', async () => {
+    const now = new Date('2026-11-07T00:00:00Z');
+    const state: any = { ...(await newFsrsState(now)), cardId: 'card', state: 'review', reps: 9, scheduledDays: 137, lastReviewAt: now.getTime(), rawJson: '{}' };
+    const forgotten = await schedule(state, 'again', now);
+    expect(forgotten.state.scheduledDays).toBe(1);
+    const relearned = await schedule(forgotten.state, 'good', new Date(now.getTime() + 86400000));
+    expect(relearned.state.scheduledDays).toBe(2);
   });
 });

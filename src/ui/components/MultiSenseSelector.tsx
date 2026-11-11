@@ -25,9 +25,12 @@ export function MultiSenseSelector({
   onDeselectAll,
   sources
 }: MultiSenseSelectorProps) {
-  if (!senses || senses.length === 0) return null;
+  // The editor should never offer an English definition as though it were a
+  // Vietnamese meaning. Incomplete source results are safely omitted.
+  const translatedSenses = (senses || []).filter(s => Boolean(s.meaningVi?.trim()));
+  if (translatedSenses.length === 0) return null;
 
-  const allSelected = senses.length > 0 && senses.every(s => selectedSenseIds.has(s.id));
+  const allSelected = translatedSenses.every(s => selectedSenseIds.has(s.id));
 
   const getSourceBadgeText = (src: DictionarySource) => {
     switch (src) {
@@ -48,7 +51,7 @@ export function MultiSenseSelector({
       <View style={styles.headerRow}>
         <View style={styles.titleWithIcon}>
           <Ionicons name="book-outline" size={15} color="#2563EB" style={{ marginRight: 5 }} />
-          <Text style={styles.titleText}>Ý NGHĨA TỪ ĐIỂN ({senses.length})</Text>
+          <Text style={styles.titleText}>CHỌN NGHĨA PHÙ HỢP ({translatedSenses.length})</Text>
         </View>
 
         <TouchableOpacity
@@ -63,12 +66,12 @@ export function MultiSenseSelector({
       </View>
 
       <Text style={styles.helperText}>
-        Tích chọn các nét nghĩa bạn muốn đưa vào thẻ học (Ưu tiên nghĩa TOEIC ở trên):
+        Chỉ hiển thị nghĩa đã có tiếng Việt. Chọn nghĩa đúng với thẻ của bạn:
       </Text>
 
       {/* Danh sách các senses */}
       <View style={styles.sensesList}>
-        {senses.map((sense, index) => {
+        {translatedSenses.map((sense, index) => {
           const isSelected = selectedSenseIds.has(sense.id);
           const isHigh = sense.toeicPriority === 'high';
 
@@ -114,24 +117,12 @@ export function MultiSenseSelector({
                     </View>
                   )}
 
-                  <View style={styles.sourceBadge}>
-                    <Text style={styles.sourceBadgeText}>
-                      {getSourceBadgeText(sense.source)}
-                    </Text>
-                  </View>
                 </View>
 
                 {/* Nghĩa tiếng Việt nổi bật */}
                 <Text style={styles.meaningViText}>
                   {sense.meaningVi || sense.definitionEn}
                 </Text>
-
-                {/* Định nghĩa tiếng Anh nguyên bản */}
-                {sense.definitionEn && sense.definitionEn !== sense.meaningVi ? (
-                  <Text style={styles.definitionEnText} numberOfLines={2}>
-                    {sense.definitionEn}
-                  </Text>
-                ) : null}
 
                 {/* Câu ví dụ tiếng Anh + dịch nếu có */}
                 {sense.exampleEn ? (
@@ -152,13 +143,6 @@ export function MultiSenseSelector({
         })}
       </View>
 
-      {/* Attribution chuẩn theo giấy phép của Merriam-Webster và Wiktionary */}
-      <View style={styles.attributionFooter}>
-        <Feather name="info" size={11} color="#94A3B8" style={{ marginRight: 4 }} />
-        <Text style={styles.attributionText}>
-          Dữ liệu từ điển: Merriam-Webster Learner's Dictionary & Free Dictionary API (Wiktionary CC BY-SA)
-        </Text>
-      </View>
     </View>
   );
 }
