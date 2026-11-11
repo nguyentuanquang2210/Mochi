@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -32,7 +32,9 @@ jobs:
           cd ios
           pod install
 
-      - name: Build unsigned iOS app
+      - name: Detect iOS workspace and app scheme
+        id: ios
+        shell: bash
         run: |
           WORKSPACE=$(find ios -maxdepth 1 -name "*.xcworkspace" -print -quit)
 
@@ -41,35 +43,95 @@ jobs:
             exit 1
           fi
 
-          SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" | python3 -c "import sys,json; print(json.load(sys.stdin)['workspace']['schemes'][0])")
-
           echo "Workspace: $WORKSPACE"
-          echo "Scheme: $SCHEME"
+
+          SCHEMES=$(xcodebuild -list -json -workspace "$WORKSPACE" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          schemes = data.get('workspace', {}).get('schemes', [])
+          print('\n'.join(schemes))
+          ")
+
+          SCHEME=""
+
+          while IFS= read -r CANDIDATE; do
+            [ -z "$CANDIDATE" ] && continue
+
+            echo "Checking scheme: $CANDIDATE"
+
+            SETTINGS=$(xcodebuild \
+              -showBuildSettings \
+              -workspace "$WORKSPACE" \
+              -scheme "$CANDIDATE" \
+              -configuration Release \
+              -sdk iphoneos 2>/dev/null || true)
+
+            if echo "$SETTINGS" | grep -q "PRODUCT_TYPE = com.apple.product-type.application"; then
+              SCHEME="$CANDIDATE"
+              break
+            fi
+          done <<< "$SCHEMES"
+
+          if [ -z "$SCHEME" ]; then
+            echo "ERROR: No iOS application scheme found"
+            echo "Available schemes:"
+            echo "$SCHEMES"
+            exit 1
+          fi
+
+          echo "Selected scheme: $SCHEME"
+
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "scheme=$SCHEME" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned iOS app
+        run: |
+          DERIVED_DATA="$GITHUB_WORKSPACE/ios-build"
 
           xcodebuild \
-            -workspace "$WORKSPACE" \
-            -scheme "$SCHEME" \
+            -workspace "${{ steps.ios.outputs.workspace }}" \
+            -scheme "${{ steps.ios.outputs.scheme }}" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED_DATA" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             build
 
       - name: Package IPA
+        shell: bash
         run: |
-          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
+          DERIVED_DATA="$GITHUB_WORKSPACE/ios-build"
+
+          echo "Searching for built iOS application..."
+
+          APP_PATH=$(find "$DERIVED_DATA/Build/Products" \
+            -type d \
+            -name "*.app" \
+            -path "*/Release-iphoneos/*" \
+            -not -path "*/Pods/*" \
+            -print -quit 2>/dev/null)
 
           if [ -z "$APP_PATH" ]; then
             echo "ERROR: App build not found"
+            echo "Build products:"
+            find "$DERIVED_DATA/Build/Products" -maxdepth 6 -print 2>/dev/null || true
             exit 1
           fi
 
+          echo "Found app: $APP_PATH"
+
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
+
           zip -r Mochi-unsigned.ipa Payload
+
           rm -rf Payload
+
+          echo "IPA created:"
+          ls -lh Mochi-unsigned.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
@@ -77,3 +139,4 @@ jobs:
           name: Mochi-iOS-IPA
           path: Mochi-unsigned.ipa
           retention-days: 7
+          if-no-files-found: error
