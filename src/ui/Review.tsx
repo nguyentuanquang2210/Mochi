@@ -307,13 +307,14 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
       useNativeDriver: true,
     }).start();
 
-    // One authoritative FSRS rating per queued card. Subsequent re-reviews only
-    // test recall in this session; they must never create duplicate revlogs.
+    // Khi ôn tập trong 1 tệp thẻ cụ thể (Boolean(deck)) hoặc ở chế độ cram:
+    // TUYỆT ĐỐI KHÔNG ghi nhận lượt ôn FSRS, không tăng reps, không thay đổi due date.
+    // Vì đây là người dùng tự bấm ôn tập tự do theo tệp thẻ.
+    // CHỈ CÓ phiên ôn tập hằng ngày tại Inbox (!deck && reviewMode !== 'cram') mới ghi nhận FSRS.
+    const isFreeDeckPractice = Boolean(deck) || reviewMode === 'cram';
     let updatedItem = item;
     try {
-      // Cram is deliberate free practice: it may be repeated indefinitely and
-      // must not change FSRS state, due date, or write a review log.
-      if (!item.fsrsRecorded && reviewMode !== 'cram') {
+      if (!item.fsrsRecorded && !isFreeDeckPractice) {
         const oldState = item.state;
         const nextState = await CardRepository.review(item.card, oldState, rating);
         updatedItem = { ...item, state: nextState, fsrsRecorded: true };
@@ -579,9 +580,11 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
             {queue.length === 0 ? 'Hôm nay không còn thẻ đến hạn!' : 'Đã hoàn thành ôn tập!'}
           </Text>
           <Text style={styles.doneSubtitle}>
-            {queue.length === 0
-              ? `Tất cả các thẻ trong ${deck?.name ? `bộ "${deck.name}"` : 'hàng đợi'} đã được ghi nhận. Thuật toán Spaced Repetition sẽ nhắc bạn ôn lại khi đến thời điểm tối ưu của não bộ.`
-              : `Bạn đã ôn tập xong toàn bộ thẻ cần học hôm nay. Lịch ôn tiếp theo đã được cập nhật chuẩn xác.`}
+            {deck
+              ? `Bạn đã hoàn thành luyện tập các từ trong bộ "${deck.name}". Lịch ôn tập Spaced Repetition của các thẻ này vẫn được giữ nguyên cho buổi ôn hằng ngày.`
+              : queue.length === 0
+                ? 'Tất cả các thẻ trong hàng đợi đã được ghi nhận. Thuật toán Spaced Repetition sẽ nhắc bạn ôn lại khi đến thời điểm tối ưu của não bộ.'
+                : 'Bạn đã ôn tập xong toàn bộ thẻ cần học hôm nay. Lịch ôn tiếp theo đã được cập nhật chuẩn xác.'}
           </Text>
           <TouchableOpacity style={styles.backHomeBtn} onPress={onDone}>
             <Text style={styles.backHomeText}>Quay về bộ thẻ</Text>
