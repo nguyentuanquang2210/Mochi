@@ -27,13 +27,13 @@ import { ReviewExerciseView, ExerciseType } from './components/ReviewExerciseVie
 import { SpeechService } from '../services/speech';
 import { TOEIC_MAP } from '../data/toeicWordlist';
 import { DictionaryService, normalizeToStandardIpa } from '../services/dictionary';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CardSummary, Deck, FsrsState, Rating, StudyQueueItem } from '../domain/types';
 import { CardRepository, StudySessionRepository } from '../data/repositories';
 
 export type PracticeMode = 'mixed' | ExerciseType;
 
-export const PRACTICE_MODES: { id: PracticeMode; label: string; icon: string; desc: string }[] = [
-  { id: 'mixed', label: 'Trộn đa dạng (Mixed)', icon: 'shuffle', desc: 'Luân phiên 6 hình thức bài tập theo từng thẻ (Khuyên dùng)' },
+export const EXERCISE_OPTIONS: { id: ExerciseType; label: string; icon: string; desc: string }[] = [
   { id: 'fill_in_blank', label: 'Điền từ (Gạch chân)', icon: 'edit-3', desc: 'Nhìn nghĩa tiếng Việt → Viết từ tiếng Anh' },
   { id: 'memory_write', label: 'Nhớ & viết lại', icon: 'zap', desc: 'Xem từ 2s rồi che đi → Viết lại bằng trí nhớ' },
   { id: 'listening', label: 'Luyện nghe TOEIC', icon: 'headphones', desc: 'Nghe phát âm mà không nhìn chữ → Điền từ' },
@@ -43,15 +43,14 @@ export const PRACTICE_MODES: { id: PracticeMode; label: string; icon: string; de
   { id: 'flashcard', label: 'Ghi nhớ bằng thẻ', icon: 'cards-outline', desc: 'Mặt trước / Mặt sau dạng flashcard' },
 ];
 
-const MIXED_CYCLE: ExerciseType[] = [
-  'fill_in_blank',
-  'listening',
-  'sentence_cloze',
-  'speaking',
-  'memory_write',
-  'word_family',
-  'flashcard'
+export const ALL_EXERCISE_TYPES: ExerciseType[] = EXERCISE_OPTIONS.map(o => o.id);
+
+export const PRACTICE_MODES: { id: PracticeMode; label: string; icon: string; desc: string }[] = [
+  { id: 'mixed', label: 'Trộn đa dạng (Mixed)', icon: 'shuffle', desc: 'Luân phiên các hình thức bài tập đã chọn' },
+  ...EXERCISE_OPTIONS
 ];
+
+const MIXED_CYCLE: ExerciseType[] = ALL_EXERCISE_TYPES;
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -83,13 +82,57 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const [loading, setLoading] = useState(true);
   const [showCardMenu, setShowCardMenu] = useState(false);
   const [showVoicePractice, setShowVoicePractice] = useState(false);
-  const [selectedPracticeMode, setSelectedPracticeMode] = useState<PracticeMode>('mixed');
+  const [selectedExerciseTypes, setSelectedExerciseTypes] = useState<ExerciseType[]>(ALL_EXERCISE_TYPES);
   const [showModeModal, setShowModeModal] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   // Theo dõi số lần lật xem mặt ẩn của thẻ hiện tại chuẩn Mochi
   const [currentRevealCount, setCurrentRevealCount] = useState(0);
   const currentRevealCountRef = useRef(0);
+
+  useEffect(() => {
+    AsyncStorage.getItem('selected_practice_modes').then(stored => {
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const valid = parsed.filter((t: any): t is ExerciseType => ALL_EXERCISE_TYPES.includes(t));
+            if (valid.length > 0) {
+              setSelectedExerciseTypes(valid);
+            }
+          }
+        } catch (e) {}
+      }
+    }).catch(() => {});
+  }, []);
+
+  const toggleExerciseType = (type: ExerciseType) => {
+    setSelectedExerciseTypes(prev => {
+      let next: ExerciseType[];
+      if (prev.includes(type)) {
+        if (prev.length <= 1) {
+          Alert.alert('Lưu ý', 'Bạn cần chọn ít nhất 1 hình thức ôn tập.');
+          return prev;
+        }
+        next = prev.filter(t => t !== type);
+      } else {
+        next = [...prev, type];
+      }
+      AsyncStorage.setItem('selected_practice_modes', JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedExerciseTypes.length === ALL_EXERCISE_TYPES.length) {
+      const next: ExerciseType[] = ['flashcard'];
+      setSelectedExerciseTypes(next);
+      AsyncStorage.setItem('selected_practice_modes', JSON.stringify(next)).catch(() => {});
+    } else {
+      setSelectedExerciseTypes(ALL_EXERCISE_TYPES);
+      AsyncStorage.setItem('selected_practice_modes', JSON.stringify(ALL_EXERCISE_TYPES)).catch(() => {});
+    }
+  };
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -227,10 +270,31 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const currentCard = currentItem?.card || null;
   const sides = currentCard ? currentCard.sides : [];
 
-  const effectiveExerciseType: ExerciseType =
-    selectedPracticeMode === 'mixed'
-      ? MIXED_CYCLE[currentIndex % MIXED_CYCLE.length]
-      : selectedPracticeMode;
+  const activeTypes = selectedExerciseTypes.length > 0 ? selectedExerciseTypes : ALL_EXERCISE_TYPES;
+  const effectiveExerciseType: ExerciseType = activeTypes[currentIndex % activeTypes.length];
+
+  const getPracticeModePillInfo = () => {
+    if (selectedExerciseTypes.length === 1) {
+      const single = EXERCISE_OPTIONS.find(o => o.id === selectedExerciseTypes[0]);
+      return {
+        label: single?.label || 'Ôn tập',
+        icon: single?.icon || 'check-circle',
+        isMaterial: single?.id === 'flashcard'
+      };
+    }
+    if (selectedExerciseTypes.length === ALL_EXERCISE_TYPES.length) {
+      return {
+        label: 'Trộn tất cả (7)',
+        icon: 'shuffle',
+        isMaterial: false
+      };
+    }
+    return {
+      label: `Đa dạng (${selectedExerciseTypes.length} hình thức)`,
+      icon: 'shuffle',
+      isMaterial: false
+    };
+  };
 
   // Lấy và tự động bổ sung phiên âm IPA cho thẻ hiện tại dựa trên Accent người dùng đã chọn
   const userAccent = SpeechService.getSettings().accent;
@@ -698,18 +762,18 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
             onPress={() => setShowModeModal(true)}
             activeOpacity={0.7}
           >
-            {selectedPracticeMode === 'flashcard' ? (
+            {getPracticeModePillInfo().isMaterial ? (
               <MaterialCommunityIcons name="cards-outline" size={15} color="#2563EB" style={{ marginRight: 5 }} />
             ) : (
               <Feather
-                name={PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.icon as any || 'shuffle'}
+                name={getPracticeModePillInfo().icon as any}
                 size={12}
                 color="#2563EB"
                 style={{ marginRight: 5 }}
               />
             )}
             <Text style={styles.practiceModePillText}>
-              {PRACTICE_MODES.find(m => m.id === selectedPracticeMode)?.label || 'Ôn tập'}
+              {getPracticeModePillInfo().label}
             </Text>
             <Feather name="chevron-down" size={12} color="#64748B" style={{ marginLeft: 3 }} />
           </TouchableOpacity>
@@ -1021,6 +1085,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
       )}
 
       {/* Practice Mode Selection Modal */}
+      {/* Exercise Mode Selection Modal (Multi-select Checkbox) */}
       <Modal
         visible={showModeModal}
         transparent
@@ -1032,9 +1097,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
             <TouchableWithoutFeedback>
               <View style={styles.modeModalSheet}>
                 <View style={styles.modeModalHeader}>
-                  <View>
+                  <View style={{ flex: 1 }}>
                     <Text style={styles.modeModalTitle}>Hình thức ôn tập</Text>
-                    <Text style={styles.modeModalSubtitle}>Chọn cách luyện tập phù hợp với bạn</Text>
+                    <Text style={styles.modeModalSubtitle}>Tích chọn các hình thức bạn muốn luyện tập</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.modeModalCloseBtn}
@@ -1044,9 +1109,25 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                   </TouchableOpacity>
                 </View>
 
+                {/* Quick actions bar: Count & Select All button */}
+                <View style={styles.modeModalActionsBar}>
+                  <Text style={styles.modeModalCountText}>
+                    Đã chọn <Text style={{ fontWeight: '700', color: '#2563EB' }}>{selectedExerciseTypes.length}</Text>/{ALL_EXERCISE_TYPES.length} hình thức
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.selectAllBtn}
+                    onPress={handleSelectAll}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.selectAllBtnText}>
+                      {selectedExerciseTypes.length === ALL_EXERCISE_TYPES.length ? 'Bỏ chọn bớt' : 'Chọn tất cả'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
                 <ScrollView style={styles.modeListScroll} showsVerticalScrollIndicator={false}>
-                  {PRACTICE_MODES.map(mode => {
-                    const isSelected = selectedPracticeMode === mode.id;
+                  {EXERCISE_OPTIONS.map(mode => {
+                    const isSelected = selectedExerciseTypes.includes(mode.id);
                     return (
                       <TouchableOpacity
                         key={mode.id}
@@ -1055,22 +1136,32 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                           isSelected && styles.modeOptionItemActive
                         ]}
                         activeOpacity={0.7}
-                        onPress={() => {
-                          setSelectedPracticeMode(mode.id);
-                          setShowModeModal(false);
-                        }}
+                        onPress={() => toggleExerciseType(mode.id)}
                       >
+                        {/* Checkbox box */}
+                        <View style={[styles.checkboxBox, isSelected && styles.checkboxBoxActive]}>
+                          {isSelected && <Feather name="check" size={13} color="#FFFFFF" />}
+                        </View>
+
                         <View
                           style={[
                             styles.modeOptionIconBox,
                             isSelected && styles.modeOptionIconBoxActive
                           ]}
                         >
-                          <Feather
-                            name={mode.icon as any}
-                            size={18}
-                            color={isSelected ? '#2563EB' : '#64748B'}
-                          />
+                          {mode.id === 'flashcard' ? (
+                            <MaterialCommunityIcons
+                              name="cards-outline"
+                              size={18}
+                              color={isSelected ? '#2563EB' : '#64748B'}
+                            />
+                          ) : (
+                            <Feather
+                              name={mode.icon as any}
+                              size={18}
+                              color={isSelected ? '#2563EB' : '#64748B'}
+                            />
+                          )}
                         </View>
                         <View style={styles.modeOptionInfo}>
                           <Text
@@ -1083,13 +1174,21 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                           </Text>
                           <Text style={styles.modeOptionDesc}>{mode.desc}</Text>
                         </View>
-                        {isSelected && (
-                          <Ionicons name="checkmark-circle" size={20} color="#2563EB" />
-                        )}
                       </TouchableOpacity>
                     );
                   })}
                 </ScrollView>
+
+                {/* Confirm Button */}
+                <TouchableOpacity
+                  style={styles.modeConfirmBtn}
+                  onPress={() => setShowModeModal(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modeConfirmBtnText}>
+                    Xong ({selectedExerciseTypes.length} hình thức)
+                  </Text>
+                </TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -1175,6 +1274,60 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 16,
     backgroundColor: '#F1F5F9'
+  },
+  modeModalActionsBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4
+  },
+  modeModalCountText: {
+    fontSize: 13,
+    color: '#64748B'
+  },
+  selectAllBtn: {
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF'
+  },
+  selectAllBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2563EB'
+  },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: '#FFFFFF'
+  },
+  checkboxBoxActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB'
+  },
+  modeConfirmBtn: {
+    marginTop: 14,
+    backgroundColor: '#2563EB',
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2563EB',
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 3
+  },
+  modeConfirmBtnText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600'
   },
   modeListScroll: {
     maxHeight: 460
