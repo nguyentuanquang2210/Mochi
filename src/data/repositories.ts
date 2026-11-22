@@ -2,6 +2,7 @@ import { database, withTransaction } from './database';
 import * as Crypto from 'expo-crypto';
 import { newFsrsState, schedule } from '../domain/fsrs';
 import type { AdaptiveLearningSettings, Card, CardSummary, ChartDataPoint, DashboardStats, Deck, FsrsState, LearningObjective, Rating, SavedView, StudyDirection, StudyQueueItem } from '../domain/types';
+import { removeCloudCard, removeCloudDeck, syncCard, syncDeck } from '../services/cloudSync';
 
 const id = () => Crypto.randomUUID();
 
@@ -100,6 +101,7 @@ export const DeckRepository = {
     const deck: Deck = { id: id(), name: name.trim(), description: description?.trim() || null, createdAt: now, updatedAt: now };
     await db.runAsync('INSERT INTO decks (id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
       deck.id, deck.name, deck.description, deck.createdAt, deck.createdAt);
+    void syncDeck(deck).catch(error => console.warn('Cloud deck sync failed:', error));
     return deck;
   },
 
@@ -107,11 +109,14 @@ export const DeckRepository = {
     const db = await database();
     await db.runAsync('UPDATE decks SET name = ?, description = ?, updated_at = ? WHERE id = ?',
       name.trim(), description?.trim() || null, Date.now(), deckId);
+    const deck = await this.getById(deckId);
+    if (deck) void syncDeck(deck).catch(error => console.warn('Cloud deck sync failed:', error));
   },
 
   async delete(deckId: string): Promise<void> {
     const db = await database();
     await db.runAsync('DELETE FROM decks WHERE id = ?', deckId);
+    void removeCloudDeck(deckId).catch(error => console.warn('Cloud deck deletion failed:', error));
   }
 };
 
@@ -165,6 +170,7 @@ export const CardRepository = {
     });
 
     const created = await this.getById(cardId);
+    if (created) void syncCard(created).catch(error => console.warn('Cloud card sync failed:', error));
     return created!;
   },
 
@@ -239,6 +245,8 @@ export const CardRepository = {
         }
       }
     });
+    const updated = await this.getById(cardId);
+    if (updated) void syncCard(updated).catch(error => console.warn('Cloud card sync failed:', error));
   },
 
   async updateIpa(cardId: string, ipaUs: string | null, ipaUk: string | null): Promise<void> {
@@ -653,21 +661,28 @@ export const CardRepository = {
   async moveToTrash(cardId: string): Promise<void> {
     const db = await database();
     await db.runAsync('UPDATE cards SET trashed_at = ?, updated_at = ? WHERE id = ?', Date.now(), Date.now(), cardId);
+    const card = await this.getById(cardId);
+    if (card) void syncCard(card).catch(error => console.warn('Cloud card sync failed:', error));
   },
 
   async restoreFromTrash(cardId: string): Promise<void> {
     const db = await database();
     await db.runAsync('UPDATE cards SET trashed_at = NULL, updated_at = ? WHERE id = ?', Date.now(), cardId);
+    const card = await this.getById(cardId);
+    if (card) void syncCard(card).catch(error => console.warn('Cloud card sync failed:', error));
   },
 
   async permanentDelete(cardId: string): Promise<void> {
     const db = await database();
     await db.runAsync('DELETE FROM cards WHERE id = ?', cardId);
+    void removeCloudCard(cardId).catch(error => console.warn('Cloud card deletion failed:', error));
   },
 
   async emptyTrash(): Promise<void> {
     const db = await database();
+    const removed = await db.getAllAsync<{ id: string }>('SELECT id FROM cards WHERE trashed_at IS NOT NULL');
     await db.runAsync('DELETE FROM cards WHERE trashed_at IS NOT NULL');
+    void Promise.all(removed.map(card => removeCloudCard(card.id))).catch(error => console.warn('Cloud trash cleanup failed:', error));
   },
 
   async duplicate(cardId: string): Promise<CardSummary | null> {

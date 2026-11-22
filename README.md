@@ -26,6 +26,11 @@
 - **Lưu trữ dữ liệu Offline**:
   - Cơ sở dữ liệu SQLite cục bộ đảm bảo tốc độ cao và hoạt động hoàn toàn không cần kết nối mạng sau khi tải từ.
 
+- **Tài khoản Firebase**:
+  - Đăng ký và đăng nhập bằng email/mật khẩu.
+  - Hồ sơ, bộ thẻ và thẻ được ghi vào Firestore bên dưới `users/{uid}`.
+  - Ảnh của thẻ chỉ ghi `imageUrl` và `thumbnailUrl` là đường dẫn/URL; ứng dụng không tải bytes ảnh lên Firebase Storage.
+
 ## Hướng dẫn cài đặt & Khởi chạy
 
 ```bash
@@ -41,4 +46,8 @@ npm test
 # Kiểm tra kiểu TypeScript
 npm run typecheck
 ```
+
+## Thiết lập Firebase
+
+Trong Firebase Console, bật **Authentication → Email/Password** và tạo cơ sở dữ liệu **Cloud Firestore**. Sau đó triển khai nội dung trong [firestore.rules](./firestore.rules) để mỗi người dùng chỉ đọc/ghi dữ liệu của chính họ. Cấu hình dự án Firebase đang đặt tại [src/services/firebase.ts](./src/services/firebase.ts).
 

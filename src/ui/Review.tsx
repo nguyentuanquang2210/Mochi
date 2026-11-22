@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  Easing,
   Image,
   Keyboard,
   KeyboardAvoidingView,
@@ -101,6 +102,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   // Animation values for swipe physics and hidden side drop
   const pan = useRef(new Animated.ValueXY()).current;
   const dropAnim = useRef(new Animated.Value(0)).current;
+  // Opacity cho hiệu ứng thẻ bay ra & thẻ mới fade-in
+  const cardSwipeOpacity = useRef(new Animated.Value(1)).current;
+  const cardFadeIn = useRef(new Animated.Value(1)).current;
 
   // Refs to avoid stale closure in PanResponder
   const queueRef = useRef<StudyQueueItem[]>([]);
@@ -164,6 +168,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     setRevealedSideIndex(0);
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
+    // Fade-in thẻ đầu tiên khi load xong
+    cardFadeIn.setValue(0);
+    Animated.timing(cardFadeIn, { toValue: 1, duration: 220, useNativeDriver: true }).start();
     if (shuffled.length > 0) {
       const createdSession = await StudySessionRepository.save({ deckId: deck?.id, reviewMode, queue: shuffled, currentIndex: 0 });
       setSessionId(createdSession);
@@ -267,7 +274,18 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     // Reset cử chỉ và mặt ẩn tức thời
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
+    // Fade-in thẻ đầu tiên khi load xong
+    cardFadeIn.setValue(0);
+    Animated.timing(cardFadeIn, { toValue: 1, duration: 220, useNativeDriver: true }).start();
     setRevealedSideIndex(0);
+
+    // Fade-in mượt mà cho thẻ tiếp theo (thẻ mới xuất hiện từ từ, không bật đột ngột)
+    cardFadeIn.setValue(0);
+    Animated.timing(cardFadeIn, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
 
     // One authoritative FSRS rating per queued card. Subsequent re-reviews only
     // test recall in this session; they must never create duplicate revlogs.
@@ -297,23 +315,41 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     await StudySessionRepository.save({ id: sessionId || undefined, deckId: deck?.id, reviewMode, queue: nextQueue, currentIndex: nextIdx }).then(setSessionId);
   };
 
-  // Button triggers with card flying animation
+  // Button triggers with card flying animation — mượt mà, ease-in, 300ms
   const handlePressForgot = () => {
-    Animated.timing(pan, {
-      toValue: { x: -600, y: 0 },
-      duration: 160,
-      useNativeDriver: false
-    }).start(() => {
+    Animated.parallel([
+      Animated.timing(pan, {
+        toValue: { x: -700, y: 0 },
+        duration: 300,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: false
+      }),
+      Animated.timing(cardSwipeOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true
+      })
+    ]).start(() => {
+      cardSwipeOpacity.setValue(1);
       handleRate('again');
     });
   };
 
   const handlePressGood = () => {
-    Animated.timing(pan, {
-      toValue: { x: 600, y: 0 },
-      duration: 160,
-      useNativeDriver: false
-    }).start(() => {
+    Animated.parallel([
+      Animated.timing(pan, {
+        toValue: { x: 700, y: 0 },
+        duration: 300,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: false
+      }),
+      Animated.timing(cardSwipeOpacity, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true
+      })
+    ]).start(() => {
+      cardSwipeOpacity.setValue(1);
       handleRate('good');
     });
   };
@@ -328,6 +364,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     setRevealedSideIndex(0);
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
+    // Fade-in thẻ đầu tiên khi load xong
+    cardFadeIn.setValue(0);
+    Animated.timing(cardFadeIn, { toValue: 1, duration: 220, useNativeDriver: true }).start();
 
     // Hoàn tác lại trạng thái FSRS của thẻ trong cơ sở dữ liệu nếu người dùng quẹt nhầm
     if (lastAction?.previousState) {
@@ -352,6 +391,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     setRevealedSideIndex(0);
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
+    // Fade-in thẻ đầu tiên khi load xong
+    cardFadeIn.setValue(0);
+    Animated.timing(cardFadeIn, { toValue: 1, duration: 220, useNativeDriver: true }).start();
   };
 
   // PanResponder for swiping left (Forgot / light red) & right (Good / light green)
@@ -371,20 +413,38 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
         const SWIPE_THRESHOLD = 80;
         if (gestureState.dx < -SWIPE_THRESHOLD || (gestureState.dx < -30 && gestureState.vx < -0.6)) {
           // Gạt sang bên trái -> Xác nhận KHÔNG NHỚ (Again)
-          Animated.timing(pan, {
-            toValue: { x: -600, y: 0 },
-            duration: 160,
-            useNativeDriver: false
-          }).start(() => {
+          Animated.parallel([
+            Animated.timing(pan, {
+              toValue: { x: -700, y: 0 },
+              duration: 280,
+              easing: Easing.in(Easing.ease),
+              useNativeDriver: false
+            }),
+            Animated.timing(cardSwipeOpacity, {
+              toValue: 0,
+              duration: 230,
+              useNativeDriver: true
+            })
+          ]).start(() => {
+            cardSwipeOpacity.setValue(1);
             handleRate('again');
           });
         } else if (gestureState.dx > SWIPE_THRESHOLD || (gestureState.dx > 30 && gestureState.vx > 0.6)) {
           // Gạt sang bên phải -> Xác nhận ĐÃ NHỚ (Good)
-          Animated.timing(pan, {
-            toValue: { x: 600, y: 0 },
-            duration: 160,
-            useNativeDriver: false
-          }).start(() => {
+          Animated.parallel([
+            Animated.timing(pan, {
+              toValue: { x: 700, y: 0 },
+              duration: 280,
+              easing: Easing.in(Easing.ease),
+              useNativeDriver: false
+            }),
+            Animated.timing(cardSwipeOpacity, {
+              toValue: 0,
+              duration: 230,
+              useNativeDriver: true
+            })
+          ]).start(() => {
+            cardSwipeOpacity.setValue(1);
             handleRate('good');
           });
         } else {
@@ -602,6 +662,8 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
             contentContainerStyle={styles.flashcardOuterContent}
             showsVerticalScrollIndicator={false}
           >
+            {/* Wrapper fade-out khi thẻ bay ra + fade-in khi thẻ mới vào */}
+            <Animated.View style={{ opacity: cardFadeIn }}>
             {/* Animated Swipe Flashcard Component (chỉ gạt ngang trái/phải) */}
             <Animated.View
               {...panResponder.panHandlers}
@@ -717,6 +779,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                   </Animated.View>
                 )}
               </TouchableOpacity>
+            </Animated.View>
             </Animated.View>
 
             {/* Tap to reveal / hide prompt */}

@@ -1,4 +1,9 @@
 import { FirebaseApp, getApp, getApps, initializeApp } from 'firebase/app';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+// The Firebase package exposes this export through React Native's conditional
+// entry point. TypeScript resolves the browser declaration instead.
+// @ts-expect-error React Native-specific Firebase Auth export.
+import { Auth, getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { Firestore, getFirestore } from 'firebase/firestore';
 import { FirebaseStorage, getStorage } from 'firebase/storage';
 
@@ -17,5 +22,15 @@ const firebaseConfig = {
 // `getAnalytics()` is deliberately omitted: Firebase Web Analytics is not a
 // native Expo service and should not run during app startup on Android/iOS.
 export const firebaseApp: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// Firebase Auth needs an explicit React Native persistence adapter. Without it,
+// a user would have to sign in again each time the app is opened.
+export const firebaseAuth: Auth = (() => {
+  try {
+    return initializeAuth(firebaseApp, { persistence: getReactNativePersistence(AsyncStorage) });
+  } catch {
+    // Fast Refresh may have initialized Auth already.
+    return getAuth(firebaseApp);
+  }
+})();
 export const firestore: Firestore = getFirestore(firebaseApp);
 export const firebaseStorage: FirebaseStorage = getStorage(firebaseApp);

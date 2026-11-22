@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -28,6 +28,7 @@ interface DrawerProps {
   onSelectView: (view: 'dashboard' | 'inbox' | 'import' | 'settings' | 'trash') => void;
   onStartInboxReview: (mode: 'due' | 'new') => void;
   onCreateDeck: (name: string) => void;
+  onLogout: () => void;
 }
 
 export function Drawer({
@@ -44,11 +45,22 @@ export function Drawer({
   onSelectDeck,
   onSelectView,
   onStartInboxReview,
-  onCreateDeck
+  onCreateDeck,
+  onLogout
 }: DrawerProps) {
   const [searchFilter, setSearchFilter] = useState('');
   const [isCreatingDeck, setIsCreatingDeck] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+
+  useEffect(() => {
+    if (!visible) setShowAccountMenu(false);
+  }, [visible]);
+
+  const closeDrawer = () => {
+    setShowAccountMenu(false);
+    onClose();
+  };
 
   const filteredDecks = decks.filter(d =>
     !searchFilter || d.name.toLowerCase().includes(searchFilter.toLowerCase())
@@ -65,24 +77,47 @@ export function Drawer({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={closeDrawer}>
       <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={onClose}>
+        <TouchableWithoutFeedback onPress={closeDrawer}>
           <View style={styles.backdrop} />
         </TouchableWithoutFeedback>
 
         <View style={styles.drawerContent}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.userRow} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.userRow}
+              activeOpacity={0.7}
+              onPress={() => setShowAccountMenu(open => !open)}
+              accessibilityRole="button"
+              accessibilityLabel="Mở menu tài khoản"
+            >
               <Text style={styles.userName}>{userName}</Text>
               <Feather name="chevron-down" size={16} color="#444444" style={{ marginLeft: 4 }} />
             </TouchableOpacity>
 
             <View style={styles.offlineRow}>
-              <Feather name="wifi-off" size={14} color="#D9534F" style={{ marginRight: 5 }} />
-              <Text style={styles.offlineText}>Ngoại tuyến</Text>
+              <Feather name="wifi" size={14} color="#16A34A" style={{ marginRight: 5 }} />
+              <Text style={styles.offlineText}>Trực tuyến</Text>
             </View>
+
+            {showAccountMenu && (
+              <View style={styles.accountMenu}>
+                <TouchableOpacity
+                  style={styles.accountMenuItem}
+                  onPress={() => {
+                    setShowAccountMenu(false);
+                    closeDrawer();
+                    onLogout();
+                  }}
+                  accessibilityRole="button"
+                >
+                  <Feather name="log-out" size={16} color="#C2410C" />
+                  <Text style={styles.accountMenuText}>Đăng xuất</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
 
           {/* Search bar */}
@@ -94,11 +129,12 @@ export function Drawer({
               placeholderTextColor="#999999"
               value={searchFilter}
               onChangeText={setSearchFilter}
+              onFocus={() => setShowAccountMenu(false)}
               autoCapitalize="none"
             />
           </View>
 
-          <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.menuScroll} showsVerticalScrollIndicator={false} onTouchStart={() => setShowAccountMenu(false)}>
             {/* Dashboard */}
             <TouchableOpacity
               style={[styles.menuItem, activeView === 'dashboard' && styles.menuItemActive]}
@@ -273,6 +309,30 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 16
   },
+  accountMenu: {
+    width: 150,
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8
+  },
+  accountMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12
+  },
+  accountMenuText: {
+    color: '#C2410C',
+    fontSize: 14,
+    fontWeight: '600'
+  },
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -290,7 +350,7 @@ const styles = StyleSheet.create({
   },
   offlineText: {
     fontSize: 13,
-    color: '#D9534F',
+    color: '#16A34A',
     fontWeight: '500'
   },
   searchContainer: {

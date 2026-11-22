@@ -27,9 +27,13 @@ import { SettingsView } from './SettingsView';
 import { CreateActionSheetModal } from './components/CreateActionSheetModal';
 import { QuickAddCardModal } from './components/QuickAddCardModal';
 import { SpeechService } from '../services/speech';
+import { AuthScreen } from './AuthScreen';
+import { logout, subscribeToAuth, type AuthUser } from '../services/auth';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
+  const [authReady, setAuthReady] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [currentView, setCurrentView] = useState<'deck' | 'dashboard' | 'search' | 'create' | 'edit' | 'review' | 'trash' | 'settings' | 'import'>('deck');
   const [reviewMode, setReviewMode] = useState<'due' | 'new' | 'cram'>('due');
   // Inbox is global; a review launched from a deck remains scoped to that deck.
@@ -55,9 +59,20 @@ export default function App() {
   const [showCreateDeckModal, setShowCreateDeckModal] = useState(false);
   const [newDeckInputName, setNewDeckInputName] = useState('');
 
+  useEffect(() => subscribeToAuth(user => {
+    setAuthUser(user);
+    setAuthReady(true);
+  }), []);
+
   useEffect(() => {
+    if (!authUser) {
+      setLoading(false);
+      return;
+    }
+    setUserName(authUser.displayName || authUser.email?.split('@')[0] || 'Người học');
+    setLoading(true);
     initApp();
-  }, []);
+  }, [authUser?.uid]);
 
   const initApp = async () => {
     try {
@@ -181,7 +196,7 @@ export default function App() {
 
   const activeDeck = decks.find(d => d.id === activeDeckId) || decks[0] || null;
 
-  if (loading) {
+  if (!authReady || (authUser && loading)) {
     return (
       <SafeAreaView style={[styles.container, styles.center]}>
         <StatusBar style="dark" />
@@ -189,6 +204,8 @@ export default function App() {
       </SafeAreaView>
     );
   }
+
+  if (!authUser) return <AuthScreen />;
 
   const renderCurrentScreen = () => {
     if (currentView === 'review') {
@@ -347,6 +364,7 @@ export default function App() {
         onSelectView={handleSelectDrawerView}
         onStartInboxReview={(mode) => { setReviewMode(mode); setReviewDeckId(null); setCurrentView('review'); }}
         onCreateDeck={handleCreateDeck}
+        onLogout={() => { void logout(); }}
       />
 
       {/* Action Sheet when clicking "+" on Bottom Nav (matching user screenshot) */}
