@@ -141,15 +141,27 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     setLoading(true);
     const saved = await StudySessionRepository.loadActive(deck?.id, reviewMode);
     if (saved) {
-      setQueue(saved.queue); queueRef.current = saved.queue;
-      setCurrentIndex(saved.currentIndex); currentIndexRef.current = saved.currentIndex;
-      setSessionId(saved.id); setLoading(false); return;
+      // BẢO VỆ TUYỆT ĐỐI: Nếu đang ôn theo 1 bộ thẻ cụ thể, loại bỏ bất kỳ thẻ nào không thuộc bộ đó
+      let validQueue = saved.queue;
+      if (deck?.id) {
+        validQueue = saved.queue.filter(item => item.card.deckId === deck.id);
+      }
+      if (validQueue.length > 0) {
+        setQueue(validQueue);
+        queueRef.current = validQueue;
+        const validIdx = Math.min(saved.currentIndex, validQueue.length - 1);
+        setCurrentIndex(validIdx);
+        currentIndexRef.current = validIdx;
+        setSessionId(saved.id);
+        setLoading(false);
+        return;
+      }
     }
     let cards: StudyQueueItem[] = [];
     if (reviewMode === 'new') {
       cards = (await CardRepository.getNewCards(deck?.id)).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
     } else if (reviewMode === 'cram') {
-      cards = (await CardRepository.getCramCards(deck ? deck.id : '')).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
+      cards = (await CardRepository.getCramCards(deck ? deck.id : undefined)).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
     } else if (deck) {
       // 1. Chỉ lấy danh sách thẻ đến hạn ôn tập (Due) + thẻ mới của bộ thẻ
       // TUYỆT ĐỐI KHÔNG tự động chuyển sang cram (ôn cấp tốc) khi hết thẻ, vì sẽ làm tăng thời gian FSRS liên tục ngoài ý muốn
@@ -157,6 +169,11 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     } else {
       // Global Review: Chỉ lấy các thẻ đến hạn từ tất cả các bộ
       cards = await CardRepository.getDueCards() as StudyQueueItem[];
+    }
+
+    // BẢO VỆ TUYỆT ĐỐI CẤP 2: Nếu có deck?.id, đảm bảo 100% không thẻ nào của bộ khác lọt vào hàng đợi
+    if (deck?.id) {
+      cards = cards.filter(item => item.card.deckId === deck.id);
     }
 
     // Đảo tung thẻ ngẫu nhiên (Fisher-Yates Shuffle) chuẩn Spaced Repetition Mochi Cards
@@ -182,7 +199,10 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
 
   const handleStartCram = async () => {
     setLoading(true);
-    const cram = (await CardRepository.getCramCards(deck ? deck.id : '')).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
+    let cram = (await CardRepository.getCramCards(deck ? deck.id : undefined)).map(item => ({ ...item, direction: 'meaning_en_vi' as const }));
+    if (deck?.id) {
+      cram = cram.filter(item => item.card.deckId === deck.id);
+    }
     const shuffled = shuffleCards(cram);
     setQueue(shuffled);
     queueRef.current = shuffled;

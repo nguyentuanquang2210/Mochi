@@ -413,7 +413,12 @@ export const CardRepository = {
     // Reverse is opt-in per card. Its state is created only when needed and is
     // never copied from the forward direction.
     const reverse = await this.getReverseDueItems(deckId, filters, args);
-    return [...forward, ...reverse];
+    const allItems = [...forward, ...reverse];
+    if (deckId && deckId.trim().length > 0) {
+      const cleanId = deckId.trim();
+      return allItems.filter(item => item.card.deckId === cleanId);
+    }
+    return allItems;
   },
 
   async getReverseDueItems(deckId: string | undefined, baseFilters?: string[], baseArgs?: any[]): Promise<StudyQueueItem[]> {
@@ -467,10 +472,15 @@ export const CardRepository = {
     `;
 
     const rows = await db.getAllAsync<any>(sql, ...args);
-    return rows.map(r => ({
+    const results = rows.map(r => ({
       card: asCardSummary(r),
       state: asState(r)
     }));
+    if (deckId && deckId.trim().length > 0) {
+      const cleanId = deckId.trim();
+      return results.filter(item => item.card.deckId === cleanId);
+    }
+    return results;
   },
 
   async getCramCards(deckId?: string): Promise<{ card: CardSummary; state: FsrsState }[]> {
@@ -478,9 +488,9 @@ export const CardRepository = {
     const filters = ['c.trashed_at IS NULL', 'c.archived_at IS NULL'];
     const args: any[] = [];
 
-    if (deckId) {
+    if (deckId && deckId.trim().length > 0) {
       filters.push('c.deck_id = ?');
-      args.push(deckId);
+      args.push(deckId.trim());
     }
 
     const sql = `
@@ -495,10 +505,18 @@ export const CardRepository = {
     `;
 
     const rows = await db.getAllAsync<any>(sql, ...args);
-    return rows.map(r => ({
+    const results = rows.map(r => ({
       card: asCardSummary(r),
       state: asState(r)
     }));
+
+    // BẢO VỆ TUYỆT ĐỐI: Nếu có deckId, lọc chắc chắn 100% chỉ trả về thẻ thuộc deckId đó
+    if (deckId && deckId.trim().length > 0) {
+      const cleanId = deckId.trim();
+      return results.filter(item => item.card.deckId === cleanId);
+    }
+
+    return results;
   },
 
   async resetDeckReviewHistory(deckId: string): Promise<void> {

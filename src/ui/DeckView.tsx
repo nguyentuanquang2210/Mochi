@@ -28,7 +28,7 @@ interface DeckViewProps {
   dueCount: number;
   newCardsCount: number;
   onOpenDrawer: () => void;
-  onStartReview: (mode?: 'due' | 'new' | 'cram') => void;
+  onStartReview: (mode?: 'due' | 'new' | 'cram', targetDeckId?: string) => void;
   onOpenCreateCard: () => void;
   onEditCard: (card: CardSummary) => void;
   onRefresh: () => void;
@@ -130,7 +130,7 @@ export function DeckView({
           onPress: async () => {
             await CardRepository.resetDeckReviewHistory(deck.id);
             await onRefresh();
-            onStartReview('due');
+            onStartReview('due', deck.id);
           }
         }
       ]
@@ -322,10 +322,9 @@ export function DeckView({
   const totalDeckCards = cards.length;
 
   const handlePressReview = async () => {
-    // The prominent deck action is always free practice across this deck.
-    // Start from card one every time; never resume an earlier free-practice run.
+    // Luôn dọn dẹp session cũ của tệp thẻ này để bắt đầu học mới
     await StudySessionRepository.discardActive(deck.id, 'cram');
-    onStartReview('cram');
+    onStartReview('cram', deck.id);
   };
 
   return (
@@ -375,7 +374,7 @@ export function DeckView({
                 style={styles.reviewDropdownItem}
                 onPress={() => {
                   setShowReviewDropdown(false);
-                  onStartReview('new');
+                  onStartReview('new', deck.id);
                 }}
               >
                 <Feather name="circle" size={15} color="#555" style={{ marginRight: 10 }} />
@@ -389,7 +388,7 @@ export function DeckView({
                 style={styles.reviewDropdownItem}
                 onPress={() => {
                   setShowReviewDropdown(false);
-                  onStartReview('cram');
+                  onStartReview('cram', deck.id);
                 }}
               >
                 <Feather name="zap" size={15} color="#555" style={{ marginRight: 10 }} />

@@ -128,6 +128,7 @@ export default function App() {
 
   const handleSelectDeck = async (deckId: string) => {
     setActiveDeckId(deckId);
+    setReviewDeckId(deckId);
     setCurrentView('deck');
     await refreshData(deckId);
   };
@@ -188,6 +189,9 @@ export default function App() {
 
   const handleSelectDrawerView = (view: 'dashboard' | 'inbox' | 'import' | 'settings' | 'trash') => {
     if (view === 'inbox') {
+      setReviewMode('due');
+      setReviewDeckId(null);
+      setReviewVersion(v => v + 1);
       setCurrentView('review');
     } else {
       setCurrentView(view);
@@ -209,13 +213,14 @@ export default function App() {
 
   const renderCurrentScreen = () => {
     if (currentView === 'review') {
+      const currentReviewDeck = reviewDeckId === null ? null : (decks.find(d => d.id === reviewDeckId) || activeDeck);
       return (
         <Review
-          key={`${reviewDeckId === null ? 'all' : activeDeck?.id || 'all'}-${reviewMode}-${reviewVersion}`}
-          deck={reviewDeckId === null ? null : activeDeck}
+          key={`${reviewDeckId === null ? 'all' : (reviewDeckId || activeDeck?.id || 'all')}-${reviewMode}-${reviewVersion}`}
+          deck={currentReviewDeck}
           reviewMode={reviewMode}
           onDone={() => {
-            refreshData();
+            refreshData(reviewDeckId || activeDeckId || undefined);
             setCurrentView('deck');
           }}
           onOpenDrawer={() => setDrawerVisible(true)}
@@ -306,9 +311,12 @@ export default function App() {
         dueCount={deckDueCount}
         newCardsCount={newCardsCount}
         onOpenDrawer={() => setDrawerVisible(true)}
-        onStartReview={(mode) => {
+        onStartReview={(mode, targetDeckId) => {
+          const finalDeckId = targetDeckId || activeDeck.id;
           setReviewMode(mode || 'due');
-          setReviewDeckId(activeDeck.id);
+          setReviewDeckId(finalDeckId);
+          setActiveDeckId(finalDeckId);
+          setReviewVersion(v => v + 1);
           setCurrentView('review');
         }}
         onOpenCreateCard={() => {
