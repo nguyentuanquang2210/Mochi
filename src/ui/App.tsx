@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
+  Easing,
   Modal,
+  PanResponder,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -30,6 +34,9 @@ import { SpeechService } from '../services/speech';
 import { AuthScreen } from './AuthScreen';
 import { logout, subscribeToAuth, type AuthUser } from '../services/auth';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const DRAWER_WIDTH = Math.min(Math.round(SCREEN_WIDTH * 0.82), 320);
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
@@ -50,8 +57,107 @@ export default function App() {
   const [newCardsCount, setNewCardsCount] = useState(0);
   const [trashCount, setTrashCount] = useState(0);
   const [userName, setUserName] = useState('Quang');
-  const [drawerVisible, setDrawerVisible] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const isDrawerOpenRef = useRef(false);
+  const drawerProgress = useRef(new Animated.Value(0)).current;
+  const currentProgressRef = useRef(0);
   const [cardToEdit, setCardToEdit] = useState<CardSummary | null>(null);
+
+  useEffect(() => {
+    const listener = drawerProgress.addListener(({ value }) => {
+      currentProgressRef.current = value;
+    });
+    return () => drawerProgress.removeListener(listener);
+  }, [drawerProgress]);
+
+  const openDrawer = () => {
+    setIsDrawerOpen(true);
+    isDrawerOpenRef.current = true;
+    Animated.timing(drawerProgress, {
+      toValue: 1,
+      duration: 250,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    }).start();
+  };
+
+  const closeDrawer = () => {
+    Animated.timing(drawerProgress, {
+      toValue: 0,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true
+    }).start(() => {
+      setIsDrawerOpen(false);
+      isDrawerOpenRef.current = false;
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        // If drawer is closed, only capture horizontal swipe from the far-left edge
+        if (!isDrawerOpenRef.current) {
+          const isEdgeSwipe = gestureState.x0 < 45;
+          const isSwipeRight = gestureState.dx > 8;
+          const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.3;
+          return isEdgeSwipe && isSwipeRight && isHorizontal;
+        }
+        // If drawer is open, capture horizontal swipe to the left
+        const isSwipeLeft = gestureState.dx < -8;
+        const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.3;
+        return isSwipeLeft && isHorizontal;
+      },
+      onPanResponderGrant: () => {
+        if (!isDrawerOpenRef.current) {
+          setIsDrawerOpen(true);
+        }
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const startVal = isDrawerOpenRef.current ? 1 : 0;
+        const deltaProgress = gestureState.dx / DRAWER_WIDTH;
+        const newProgress = Math.max(0, Math.min(1, startVal + deltaProgress));
+        drawerProgress.setValue(newProgress);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (!isDrawerOpenRef.current) {
+          if (gestureState.dx > DRAWER_WIDTH * 0.25 || gestureState.vx > 0.3) {
+            openDrawer();
+          } else {
+            closeDrawer();
+          }
+        } else {
+          if (gestureState.dx < -DRAWER_WIDTH * 0.25 || gestureState.vx < -0.3) {
+            closeDrawer();
+          } else {
+            openDrawer();
+          }
+        }
+      },
+      onPanResponderTerminate: () => {
+        if (currentProgressRef.current > 0.4) {
+          openDrawer();
+        } else {
+          closeDrawer();
+        }
+      }
+    })
+  ).current;
+
+  const drawerTranslateX = drawerProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-DRAWER_WIDTH, 0]
+  });
+
+  const mainScreenTranslateX = drawerProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, DRAWER_WIDTH]
+  });
+
+  const overlayOpacity = drawerProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 0.2]
+  });
 
   // New states for the Plus button Action Sheet & modals
   const [showCreateActionSheet, setShowCreateActionSheet] = useState(false);
@@ -223,7 +329,7 @@ export default function App() {
             refreshData(reviewDeckId || activeDeckId || undefined);
             setCurrentView('deck');
           }}
-          onOpenDrawer={() => setDrawerVisible(true)}
+          onOpenDrawer={openDrawer}
           onEditCard={(c) => {
             setCardToEdit(c);
             setCurrentView('edit');
@@ -253,7 +359,7 @@ export default function App() {
       return (
         <Dashboard
           decks={decks}
-          onOpenDrawer={() => setDrawerVisible(true)}
+          onOpenDrawer={openDrawer}
         />
       );
     }
@@ -263,7 +369,7 @@ export default function App() {
         <SearchView
           decks={decks}
           allCards={allCards}
-          onOpenDrawer={() => setDrawerVisible(true)}
+          onOpenDrawer={openDrawer}
           onEditCard={(c) => {
             setCardToEdit(c);
             setCurrentView('edit');
@@ -276,7 +382,7 @@ export default function App() {
     if (currentView === 'trash') {
       return (
         <TrashView
-          onOpenDrawer={() => setDrawerVisible(true)}
+          onOpenDrawer={openDrawer}
           onRefresh={refreshData}
         />
       );
@@ -288,7 +394,7 @@ export default function App() {
           userName={userName}
           decks={decks}
           onUpdateUserName={setUserName}
-          onOpenDrawer={() => setDrawerVisible(true)}
+          onOpenDrawer={openDrawer}
           onRefresh={refreshData}
         />
       );
@@ -310,7 +416,7 @@ export default function App() {
         cards={cards}
         dueCount={deckDueCount}
         newCardsCount={newCardsCount}
-        onOpenDrawer={() => setDrawerVisible(true)}
+        onOpenDrawer={openDrawer}
         onStartReview={(mode, targetDeckId) => {
           const finalDeckId = targetDeckId || activeDeck.id;
           setReviewMode(mode || 'due');
@@ -344,35 +450,86 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Main Screen Content */}
-      <View style={styles.content}>
-        {renderCurrentScreen()}
+      {/* Push-Drawer Stage */}
+      <View style={styles.stage} {...panResponder.panHandlers}>
+        {/* Sidebar Drawer panel behind / alongside */}
+        <Animated.View
+          style={[
+            styles.drawerWrapper,
+            {
+              width: DRAWER_WIDTH,
+              transform: [{ translateX: drawerTranslateX }]
+            }
+          ]}
+        >
+          <Drawer
+            visible={isDrawerOpen}
+            onClose={closeDrawer}
+            decks={decks}
+            activeDeckId={activeDeckId}
+            activeView={currentView}
+            inboxDueCount={inboxDueCount}
+            inboxNewCount={inboxNewCount}
+            deckCardCounts={deckCardCounts}
+            trashCount={trashCount}
+            userName={userName}
+            onSelectDeck={(deckId) => {
+              closeDrawer();
+              handleSelectDeck(deckId);
+            }}
+            onSelectView={(view) => {
+              closeDrawer();
+              handleSelectDrawerView(view);
+            }}
+            onStartInboxReview={(mode) => {
+              closeDrawer();
+              setReviewMode(mode);
+              setReviewDeckId(null);
+              setCurrentView('review');
+            }}
+            onCreateDeck={handleCreateDeck}
+            onLogout={() => {
+              closeDrawer();
+              void logout();
+            }}
+          />
+        </Animated.View>
+
+        {/* Main Screen Content pushed to the right */}
+        <Animated.View
+          style={[
+            styles.mainWrapper,
+            {
+              transform: [{ translateX: mainScreenTranslateX }]
+            }
+          ]}
+        >
+          <View style={styles.content}>
+            {renderCurrentScreen()}
+          </View>
+
+          {/* Tap-to-close overlay on pushed main screen */}
+          {isDrawerOpen && (
+            <TouchableWithoutFeedback onPress={closeDrawer}>
+              <Animated.View
+                style={[
+                  styles.mainOverlay,
+                  { opacity: overlayOpacity }
+                ]}
+              />
+            </TouchableWithoutFeedback>
+          )}
+        </Animated.View>
       </View>
 
       {/* Persistent Bottom Nav (Screenshot 1, 2, 3, 4) */}
       <BottomNav
         currentTab={getActiveTab()}
         inboxDueCount={inboxDueCount}
-        onSelectTab={handleSelectTab}
-      />
-
-      {/* Sidebar Navigation Drawer (Screenshot 2) */}
-      <Drawer
-        visible={drawerVisible}
-        onClose={() => setDrawerVisible(false)}
-        decks={decks}
-        activeDeckId={activeDeckId}
-        activeView={currentView}
-        inboxDueCount={inboxDueCount}
-        inboxNewCount={inboxNewCount}
-        deckCardCounts={deckCardCounts}
-        trashCount={trashCount}
-        userName={userName}
-        onSelectDeck={handleSelectDeck}
-        onSelectView={handleSelectDrawerView}
-        onStartInboxReview={(mode) => { setReviewMode(mode); setReviewDeckId(null); setCurrentView('review'); }}
-        onCreateDeck={handleCreateDeck}
-        onLogout={() => { void logout(); }}
+        onSelectTab={(tab) => {
+          if (isDrawerOpen) closeDrawer();
+          handleSelectTab(tab);
+        }}
       />
 
       {/* Action Sheet when clicking "+" on Bottom Nav (matching user screenshot) */}
@@ -446,6 +603,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF'
+  },
+  stage: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#FAFAFA'
+  },
+  drawerWrapper: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 1,
+    backgroundColor: '#FAFAFA'
+  },
+  mainWrapper: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: -3, height: 0 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 8,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: '#E5E5E5'
+  },
+  mainOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000000',
+    zIndex: 10
   },
   content: {
     flex: 1

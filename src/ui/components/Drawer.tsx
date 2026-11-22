@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
-  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { Feather, Ionicons } from './Icons';
@@ -77,14 +75,8 @@ export function Drawer({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={closeDrawer}>
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={closeDrawer}>
-          <View style={styles.backdrop} />
-        </TouchableWithoutFeedback>
-
-        <View style={styles.drawerContent}>
-          {/* Header */}
+    <View style={styles.drawerContent}>
+      {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.userRow}
@@ -276,35 +268,16 @@ export function Drawer({
             <View style={{ height: 40 }} />
           </ScrollView>
         </View>
-      </View>
-    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    flexDirection: 'row',
-    backgroundColor: 'rgba(0, 0, 0, 0.25)'
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0
-  },
   drawerContent: {
-    width: '78%',
-    maxWidth: 320,
+    width: '100%',
+    flex: 1,
     backgroundColor: '#FAFAFA',
-    height: '100%',
     paddingTop: 52,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 8
+    paddingHorizontal: 16
   },
   header: {
     marginBottom: 16
