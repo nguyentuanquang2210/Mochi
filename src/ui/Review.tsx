@@ -87,6 +87,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const [showModeModal, setShowModeModal] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // Theo dõi số lần lật xem mặt ẩn của thẻ hiện tại chuẩn Mochi
+  const [currentRevealCount, setCurrentRevealCount] = useState(0);
+  const currentRevealCountRef = useRef(0);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -125,6 +128,8 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
 
   useEffect(() => {
     currentIndexRef.current = currentIndex;
+    setCurrentRevealCount(0);
+    currentRevealCountRef.current = 0;
   }, [currentIndex]);
 
   useEffect(() => {
@@ -267,6 +272,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (revealedSideIndex === 0) {
+      const nextCount = currentRevealCountRef.current + 1;
+      currentRevealCountRef.current = nextCount;
+      setCurrentRevealCount(nextCount);
       setRevealedSideIndex(Math.max(1, sides.length - 1));
       dropAnim.setValue(0);
       Animated.spring(dropAnim, {
@@ -312,24 +320,54 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     // Vì đây là người dùng tự bấm ôn tập tự do theo tệp thẻ.
     // CHỈ CÓ phiên ôn tập hằng ngày tại Inbox (!deck && reviewMode !== 'cram') mới ghi nhận FSRS.
     const isFreeDeckPractice = Boolean(deck) || reviewMode === 'cram';
+    const reveals = currentRevealCountRef.current;
     let updatedItem = item;
+
+    // Trong phiên ôn tập hằng ngày Inbox (chuẩn Mochi Spaced Repetition):
+    // Căn cứ vào số lần người dùng phải lật xem lại mặt ẩn để điều chỉnh mức độ nhớ:
+    let effectiveRating: Rating = rating;
+    if (!isFreeDeckPractice) {
+      if (rating === 'good') {
+        if (reveals >= 3) {
+          // Lật xem mặt ẩn >= 3 lần: Người học phải xem đáp án nhiều lần -> tính là 'again'
+          effectiveRating = 'again';
+        } else if (reveals >= 1) {
+          // Lật xem mặt ẩn 1-2 lần: Chưa đạt phản xạ nhớ chủ động tuyệt đối -> hạ thành 'hard'
+          effectiveRating = 'hard';
+        }
+      }
+    }
+
     try {
       if (!item.fsrsRecorded && !isFreeDeckPractice) {
         const oldState = item.state;
-        const nextState = await CardRepository.review(item.card, oldState, rating);
+        const nextState = await CardRepository.review(item.card, oldState, effectiveRating);
         updatedItem = { ...item, state: nextState, fsrsRecorded: true };
         setHistory(prev => [...prev, { card: item.card, state: nextState, previousState: oldState }]);
       }
     } catch (e) {
       console.warn('Lỗi ghi nhận lượt ôn:', e);
     }
-    // Put an incorrect card back after up to three different cards, rather than
-    // at the end or immediately again. A correct re-review simply clears it.
+
+    // Vòng lặp học tập trong phiên (Intra-session learning loop chuẩn Mochi):
+    // 1. Nếu trả lời sai ('again' hoặc bị giáng xuống 'again' do lật xem >= 3 lần):
+    // 2. HOẶC bấm 'good' nhưng trong phiên Inbox người dùng vẫn phải lật xem mặt ẩn (reveals >= 1):
+    // -> BẮT BUỘC chèn lại thẻ sau 3 thẻ nữa để người học tự kiểm tra lại trí nhớ mà KHÔNG xem mặt ẩn!
+    const needsRepeat = effectiveRating === 'again' || (!isFreeDeckPractice && reveals >= 1);
     let nextQueue = [...curQueue];
-    if (rating === 'again') {
+    if (needsRepeat) {
       const insertAt = Math.min(nextQueue.length, curIdx + 1 + 3);
-      nextQueue.splice(insertAt, 0, { ...updatedItem, reReviewCount: (item.reReviewCount || 0) + 1 });
+      nextQueue.splice(insertAt, 0, {
+        ...updatedItem,
+        reReviewCount: (item.reReviewCount || 0) + 1,
+        revealCount: reveals
+      });
     }
+
+    // Reset bộ đếm lật mặt ẩn cho thẻ tiếp theo
+    setCurrentRevealCount(0);
+    currentRevealCountRef.current = 0;
+
     const nextIdx = curIdx + 1;
     queueRef.current = nextQueue; setQueue(nextQueue);
     currentIndexRef.current = nextIdx; setCurrentIndex(nextIdx);
@@ -810,11 +848,15 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
               <Ionicons
                 name={revealedSideIndex > 0 ? 'eye-off-outline' : 'hand-left-outline'}
                 size={16}
-                color="#8E8E93"
+                color={currentRevealCount > 0 ? '#E11D48' : '#8E8E93'}
                 style={{ marginRight: 6 }}
               />
-              <Text style={styles.tapPromptText}>
-                {revealedSideIndex > 0 ? 'Chạm vào thẻ để ẩn lại' : 'Chạm để xem nghĩa / mặt ẩn'}
+              <Text style={[styles.tapPromptText, currentRevealCount > 0 && { color: '#E11D48' }]}>
+                {revealedSideIndex > 0
+                  ? `Chạm vào thẻ để ẩn lại ${currentRevealCount > 1 ? `(đã lật ${currentRevealCount} lần)` : '(đã lật 1 lần)'}`
+                  : currentRevealCount > 0
+                    ? `Chạm để xem lại nghĩa (đã lật ${currentRevealCount} lần)`
+                    : 'Chạm để xem nghĩa / mặt ẩn'}
               </Text>
             </TouchableOpacity>
           </ScrollView>

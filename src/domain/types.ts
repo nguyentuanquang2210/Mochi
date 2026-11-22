@@ -102,6 +102,7 @@ export interface StudyQueueItem {
   /** True after the one authoritative FSRS rating for this session item. */
   fsrsRecorded?: boolean;
   reReviewCount?: number;
+  revealCount?: number;
 }
 
 export interface AdaptiveLearningSettings {
