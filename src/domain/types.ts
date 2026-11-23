@@ -5,6 +5,15 @@ export type LearningObjective =
   | 'spelling_recall'
   | 'pronunciation';
 
+export type ExerciseType =
+  | 'flashcard'      // Lật thẻ truyền thống
+  | 'fill_in_blank'  // 1. Nhìn nghĩa tiếng Việt -> viết từ tiếng Anh (theo ảnh)
+  | 'memory_write'   // 2. Viết lại từ bằng trí nhớ (che từ rồi viết)
+  | 'listening'      // 3. Nghe âm thanh -> nhận diện từ
+  | 'speaking'       // 4. Nhìn từ -> tự phát âm
+  | 'sentence_cloze' // 5. Điền từ vào câu
+  | 'word_family';   // 6. Nhận diện họ từ
+
 export type Rating = 'again' | 'hard' | 'good' | 'easy';
 
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';

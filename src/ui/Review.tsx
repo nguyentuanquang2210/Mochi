@@ -29,7 +29,7 @@ import { TOEIC_MAP } from '../data/toeicWordlist';
 import { DictionaryService, normalizeToStandardIpa } from '../services/dictionary';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CardSummary, Deck, FsrsState, Rating, StudyQueueItem } from '../domain/types';
-import { CardRepository, StudySessionRepository } from '../data/repositories';
+import { CardRepository, StudySessionRepository, UserSettingsRepository } from '../data/repositories';
 
 export type PracticeMode = 'mixed' | ExerciseType;
 
@@ -72,9 +72,19 @@ interface ReviewProps {
   onDone: () => void;
   onOpenDrawer: () => void;
   onEditCard: (card: CardSummary) => void;
+  initialPracticeModes?: ExerciseType[];
+  onPracticeModesChange?: (modes: ExerciseType[]) => void;
 }
 
-export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditCard }: ReviewProps) {
+export function Review({
+  deck,
+  reviewMode = 'due',
+  onDone,
+  onOpenDrawer,
+  onEditCard,
+  initialPracticeModes,
+  onPracticeModesChange
+}: ReviewProps) {
   const [queue, setQueue] = useState<StudyQueueItem[]>([]);
   const [history, setHistory] = useState<{ card: CardSummary; state: FsrsState; previousState: FsrsState }[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -82,7 +92,10 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const [loading, setLoading] = useState(true);
   const [showCardMenu, setShowCardMenu] = useState(false);
   const [showVoicePractice, setShowVoicePractice] = useState(false);
-  const [selectedExerciseTypes, setSelectedExerciseTypes] = useState<ExerciseType[]>(ALL_EXERCISE_TYPES);
+  const [selectedExerciseTypes, setSelectedExerciseTypes] = useState<ExerciseType[]>(() => {
+    if (initialPracticeModes && initialPracticeModes.length > 0) return initialPracticeModes;
+    return UserSettingsRepository.getCachedPracticeModes();
+  });
   const [showModeModal, setShowModeModal] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -101,18 +114,19 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     setRevealedSideIndex(0);
   }, [currentIndex]);
 
+  // Cập nhật khi prop initialPracticeModes thay đổi
   useEffect(() => {
-    AsyncStorage.getItem('selected_practice_modes').then(stored => {
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const valid = parsed.filter((t: any): t is ExerciseType => ALL_EXERCISE_TYPES.includes(t));
-            if (valid.length > 0) {
-              setSelectedExerciseTypes(valid);
-            }
-          }
-        } catch (e) {}
+    if (initialPracticeModes && initialPracticeModes.length > 0) {
+      setSelectedExerciseTypes(initialPracticeModes);
+    }
+  }, [initialPracticeModes]);
+
+  // Khởi tạo hình thức ôn tập từ kho lưu trữ bền vững (SQLite & AsyncStorage)
+  useEffect(() => {
+    UserSettingsRepository.getPracticeModes().then(modes => {
+      if (modes && modes.length > 0) {
+        setSelectedExerciseTypes(modes);
+        onPracticeModesChange?.(modes);
       }
     }).catch(() => {});
   }, []);
@@ -129,20 +143,21 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
       } else {
         next = [...prev, type];
       }
+      UserSettingsRepository.setPracticeModes(next).catch(() => {});
       AsyncStorage.setItem('selected_practice_modes', JSON.stringify(next)).catch(() => {});
+      onPracticeModesChange?.(next);
       return next;
     });
   };
 
   const handleSelectAll = () => {
-    if (selectedExerciseTypes.length === ALL_EXERCISE_TYPES.length) {
-      const next: ExerciseType[] = ['flashcard'];
-      setSelectedExerciseTypes(next);
-      AsyncStorage.setItem('selected_practice_modes', JSON.stringify(next)).catch(() => {});
-    } else {
-      setSelectedExerciseTypes(ALL_EXERCISE_TYPES);
-      AsyncStorage.setItem('selected_practice_modes', JSON.stringify(ALL_EXERCISE_TYPES)).catch(() => {});
-    }
+    const next: ExerciseType[] = selectedExerciseTypes.length === ALL_EXERCISE_TYPES.length
+      ? ['flashcard']
+      : ALL_EXERCISE_TYPES;
+    setSelectedExerciseTypes(next);
+    UserSettingsRepository.setPracticeModes(next).catch(() => {});
+    AsyncStorage.setItem('selected_practice_modes', JSON.stringify(next)).catch(() => {});
+    onPracticeModesChange?.(next);
   };
 
   useEffect(() => {
@@ -1206,7 +1221,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                 {/* Quick actions bar: Count & Select All button */}
                 <View style={styles.modeModalActionsBar}>
                   <Text style={styles.modeModalCountText}>
-                    Đã chọn <Text style={{ fontWeight: '700', color: '#2563EB' }}>{selectedExerciseTypes.length}</Text>/{ALL_EXERCISE_TYPES.length} hình thức
+                    Đã chọn <Text style={{ fontWeight: '700', color: '#262626' }}>{selectedExerciseTypes.length}</Text>/{ALL_EXERCISE_TYPES.length} hình thức
                   </Text>
                   <TouchableOpacity
                     style={styles.selectAllBtn}
@@ -1247,13 +1262,13 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                             <MaterialCommunityIcons
                               name="cards-outline"
                               size={18}
-                              color={isSelected ? '#2563EB' : '#64748B'}
+                              color={isSelected ? '#262626' : '#64748B'}
                             />
                           ) : (
                             <Feather
                               name={mode.icon as any}
                               size={18}
-                              color={isSelected ? '#2563EB' : '#64748B'}
+                              color={isSelected ? '#262626' : '#64748B'}
                             />
                           )}
                         </View>
@@ -1384,12 +1399,12 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 12,
     borderRadius: 8,
-    backgroundColor: '#EFF6FF'
+    backgroundColor: '#F5F5F5'
   },
   selectAllBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#2563EB'
+    color: '#262626'
   },
   checkboxBox: {
     width: 22,
@@ -1403,18 +1418,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF'
   },
   checkboxBoxActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB'
+    backgroundColor: '#262626',
+    borderColor: '#262626'
   },
   modeConfirmBtn: {
     marginTop: 14,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#262626',
     paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2563EB',
-    shadowOpacity: 0.2,
+    shadowColor: '#000000',
+    shadowOpacity: 0.15,
     shadowRadius: 5,
     elevation: 3
   },

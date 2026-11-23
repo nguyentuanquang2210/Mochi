@@ -1,7 +1,7 @@
 import { database, withTransaction } from './database';
 import * as Crypto from 'expo-crypto';
 import { newFsrsState, schedule } from '../domain/fsrs';
-import type { AdaptiveLearningSettings, Card, CardSummary, ChartDataPoint, DashboardStats, Deck, FsrsState, LearningObjective, Rating, SavedView, StudyDirection, StudyQueueItem } from '../domain/types';
+import type { AdaptiveLearningSettings, Card, CardSummary, ChartDataPoint, DashboardStats, Deck, ExerciseType, FsrsState, LearningObjective, Rating, SavedView, StudyDirection, StudyQueueItem } from '../domain/types';
 import { removeCloudCard, removeCloudDeck, syncCard, syncDeck } from '../services/cloudSync';
 
 const id = () => Crypto.randomUUID();
@@ -1163,3 +1163,54 @@ async function persistState(tx: any, s: FsrsState) {
     s.cardId, s.objective, s.state, s.dueAt, s.stability, s.difficulty, s.elapsedDays, s.scheduledDays, s.reps, s.lapses, s.lastReviewAt, s.rawJson
   );
 }
+
+export const DEFAULT_PRACTICE_MODES: ExerciseType[] = [
+  'flashcard',
+  'fill_in_blank',
+  'memory_write',
+  'listening',
+  'speaking',
+  'sentence_cloze',
+  'word_family'
+];
+
+let cachedPracticeModes: ExerciseType[] = [...DEFAULT_PRACTICE_MODES];
+
+export const UserSettingsRepository = {
+  async get(key: string): Promise<string | null> {
+    const db = await database();
+    const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM user_settings WHERE key = ?', key);
+    return row ? row.value : null;
+  },
+  async set(key: string, value: string): Promise<void> {
+    const db = await database();
+    await db.runAsync(
+      'INSERT INTO user_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      key,
+      value
+    );
+  },
+  async getPracticeModes(): Promise<ExerciseType[]> {
+    try {
+      const val = await this.get('selectedPracticeModes');
+      if (val) {
+        const parsed = JSON.parse(val);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter((t: any): t is ExerciseType => DEFAULT_PRACTICE_MODES.includes(t));
+          if (valid.length > 0) {
+            cachedPracticeModes = valid;
+            return valid;
+          }
+        }
+      }
+    } catch {}
+    return cachedPracticeModes;
+  },
+  async setPracticeModes(modes: ExerciseType[]): Promise<void> {
+    cachedPracticeModes = modes;
+    await this.set('selectedPracticeModes', JSON.stringify(modes));
+  },
+  getCachedPracticeModes(): ExerciseType[] {
+    return cachedPracticeModes;
+  }
+};

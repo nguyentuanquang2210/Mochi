@@ -15,11 +15,21 @@ import {
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from './components/Icons';
 import { Header } from './components/Header';
-import type { Deck } from '../domain/types';
-import { AdaptiveLearningRepository, CardRepository } from '../data/repositories';
+import type { Deck, ExerciseType } from '../domain/types';
+import { AdaptiveLearningRepository, CardRepository, UserSettingsRepository, DEFAULT_PRACTICE_MODES } from '../data/repositories';
 import { SpeechService, SpeechAccent, POPULAR_VOICES, PopularVoice } from '../services/speech';
 import { StudyReminders } from '../services/studyReminders';
 import { MochiFile } from '../services/mochiFile';
+
+const SETTINGS_PRACTICE_OPTIONS: { id: ExerciseType; label: string; desc: string }[] = [
+  { id: 'flashcard', label: 'Lật thẻ truyền thống', desc: 'Chạm để lật mở xem mặt sau / mặt ẩn' },
+  { id: 'fill_in_blank', label: 'Điền từ (Gạch chân)', desc: 'Nhìn nghĩa tiếng Việt → Viết từ tiếng Anh' },
+  { id: 'memory_write', label: 'Nhớ & viết lại', desc: 'Xem từ 2s rồi che đi → Viết lại bằng trí nhớ' },
+  { id: 'listening', label: 'Luyện nghe TOEIC', desc: 'Nghe phát âm mà không nhìn chữ → Điền từ' },
+  { id: 'speaking', label: 'Luyện phát âm', desc: 'Nhìn từ → Tự đọc to vào micro' },
+  { id: 'sentence_cloze', label: 'Điền vào câu ngữ cảnh', desc: 'Đọc câu ví dụ chứa ô trống → Điền từ phù hợp' },
+  { id: 'word_family', label: 'Họ từ vựng (Word Family)', desc: 'Nhận diện danh từ/động từ/tính từ cùng họ' }
+];
 
 interface SettingsViewProps {
   userName: string;
@@ -58,6 +68,11 @@ export function SettingsView({
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [voiceSearchQuery, setVoiceSearchQuery] = useState('');
 
+  // Hình thức ôn tập mặc định (đồng bộ cùng SQLite user_settings)
+  const [practiceModes, setPracticeModes] = useState<ExerciseType[]>(
+    UserSettingsRepository.getCachedPracticeModes()
+  );
+
   useEffect(() => {
     const loadSpeechSettings = async () => {
       await SpeechService.init();
@@ -76,7 +91,35 @@ export function SettingsView({
       setDailyNewLimit(String(s.dailyNewLimit));
       setTargetMinutes(String(s.targetMinutes));
     });
+    UserSettingsRepository.getPracticeModes().then(modes => {
+      if (modes && modes.length > 0) {
+        setPracticeModes(modes);
+      }
+    });
   }, []);
+
+  const handleTogglePracticeMode = (modeId: ExerciseType) => {
+    let next: ExerciseType[];
+    if (practiceModes.includes(modeId)) {
+      if (practiceModes.length <= 1) {
+        Alert.alert('Lưu ý', 'Bạn cần chọn ít nhất 1 hình thức ôn tập.');
+        return;
+      }
+      next = practiceModes.filter(m => m !== modeId);
+    } else {
+      next = [...practiceModes, modeId];
+    }
+    setPracticeModes(next);
+    UserSettingsRepository.setPracticeModes(next).catch(() => {});
+  };
+
+  const handleSelectAllPracticeModes = () => {
+    const next: ExerciseType[] = practiceModes.length === DEFAULT_PRACTICE_MODES.length
+      ? ['flashcard']
+      : [...DEFAULT_PRACTICE_MODES];
+    setPracticeModes(next);
+    UserSettingsRepository.setPracticeModes(next).catch(() => {});
+  };
 
   const handleChangeAccent = async (accent: SpeechAccent) => {
     setSpeechAccent(accent);
@@ -589,6 +632,47 @@ export function SettingsView({
           </View>
         </View>
 
+        {/* Default Practice Modes */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeaderTitle}>HÌNH THỨC ÔN TẬP MẶC ĐỊNH</Text>
+          <TouchableOpacity onPress={handleSelectAllPracticeModes} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.sectionHeaderAction}>
+              {practiceModes.length === DEFAULT_PRACTICE_MODES.length ? 'Bỏ chọn bớt' : 'Chọn tất cả (7)'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.cardBox}>
+          <Text style={styles.practiceModeIntro}>
+            Các hình thức được tích chọn dưới đây sẽ được ghi nhớ và tự động áp dụng cho mọi phiên ôn tập hằng ngày và ôn theo bộ thẻ cho đến khi bạn thay đổi:
+          </Text>
+          <View style={{ marginTop: 8 }}>
+            {SETTINGS_PRACTICE_OPTIONS.map((opt, idx) => {
+              const isSelected = practiceModes.includes(opt.id);
+              return (
+                <View key={opt.id}>
+                  {idx > 0 && <View style={styles.divider} />}
+                  <TouchableOpacity
+                    style={styles.practiceModeItem}
+                    onPress={() => handleTogglePracticeMode(opt.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.checkboxSquare, isSelected && styles.checkboxSquareActive]}>
+                      {isSelected && <Feather name="check" size={13} color="#FFFFFF" />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.practiceModeTitle, isSelected && styles.practiceModeTitleActive]}>
+                        {opt.label}
+                      </Text>
+                      <Text style={styles.practiceModeDesc}>{opt.desc}</Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+
         {/* FSRS Algorithm Info */}
         <Text style={styles.sectionHeader}>THUẬT TOÁN LẶP LẠI NGẮT QUÃNG</Text>
         <View style={styles.cardBox}>
@@ -911,6 +995,65 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
     marginLeft: 4
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 4
+  },
+  sectionHeaderTitle: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#8E8E93',
+    letterSpacing: 0.8
+  },
+  sectionHeaderAction: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#262626'
+  },
+  practiceModeIntro: {
+    fontSize: 12.5,
+    color: '#666666',
+    lineHeight: 18,
+    marginBottom: 4
+  },
+  practiceModeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8
+  },
+  checkboxSquare: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: '#FFFFFF'
+  },
+  checkboxSquareActive: {
+    backgroundColor: '#262626',
+    borderColor: '#262626'
+  },
+  practiceModeTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333333'
+  },
+  practiceModeTitleActive: {
+    fontWeight: '700',
+    color: '#111111'
+  },
+  practiceModeDesc: {
+    fontSize: 12,
+    color: '#777777',
+    marginTop: 2
   },
   cardBox: {
     backgroundColor: '#FFFFFF',

@@ -17,8 +17,8 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { database } from '../data/database';
-import { CardRepository, DeckRepository } from '../data/repositories';
-import type { CardSummary, Deck } from '../domain/types';
+import { CardRepository, DeckRepository, UserSettingsRepository } from '../data/repositories';
+import type { CardSummary, Deck, ExerciseType } from '../domain/types';
 import { BottomNav, TabId } from './components/BottomNav';
 import { Drawer } from './components/Drawer';
 import { DeckView } from './DeckView';
@@ -62,6 +62,17 @@ export default function App() {
   const drawerProgress = useRef(new Animated.Value(0)).current;
   const currentProgressRef = useRef(0);
   const [cardToEdit, setCardToEdit] = useState<CardSummary | null>(null);
+  const [practiceModes, setPracticeModes] = useState<ExerciseType[]>(
+    UserSettingsRepository.getCachedPracticeModes()
+  );
+
+  useEffect(() => {
+    UserSettingsRepository.getPracticeModes().then(modes => {
+      if (modes && modes.length > 0) {
+        setPracticeModes(modes);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const listener = drawerProgress.addListener(({ value }) => {
@@ -325,6 +336,8 @@ export default function App() {
           key={`${reviewDeckId === null ? 'all' : (reviewDeckId || activeDeck?.id || 'all')}-${reviewMode}-${reviewVersion}`}
           deck={currentReviewDeck}
           reviewMode={reviewMode}
+          initialPracticeModes={practiceModes}
+          onPracticeModesChange={(modes) => setPracticeModes(modes)}
           onDone={() => {
             refreshData(reviewDeckId || activeDeckId || undefined);
             setCurrentView('deck');
