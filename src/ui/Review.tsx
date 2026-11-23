@@ -89,6 +89,17 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   // Theo dõi số lần lật xem mặt ẩn của thẻ hiện tại chuẩn Mochi
   const [currentRevealCount, setCurrentRevealCount] = useState(0);
   const currentRevealCountRef = useRef(0);
+  const hasRevealedInCurrentAttemptRef = useRef(false);
+
+  // Khi chuyển sang một thẻ mới trong phiên:
+  // Reset trạng thái "đã lật ở lượt này" và khởi tạo số lần lật tích lũy của thẻ đó
+  useEffect(() => {
+    hasRevealedInCurrentAttemptRef.current = false;
+    const initialReveals = queue[currentIndex]?.revealCount || 0;
+    currentRevealCountRef.current = initialReveals;
+    setCurrentRevealCount(initialReveals);
+    setRevealedSideIndex(0);
+  }, [currentIndex]);
 
   useEffect(() => {
     AsyncStorage.getItem('selected_practice_modes').then(stored => {
@@ -348,9 +359,15 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     }
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (revealedSideIndex === 0) {
-      const nextCount = currentRevealCountRef.current + 1;
-      currentRevealCountRef.current = nextCount;
-      setCurrentRevealCount(nextCount);
+      // Chỉ tính +1 lần lật xem ở lần mở đầu tiên trong lượt học hiện tại của thẻ.
+      // Nếu người dùng cứ lật đi lật lại ở cùng một thẻ trước khi đánh giá thì chỉ tính 1 lần.
+      if (!hasRevealedInCurrentAttemptRef.current) {
+        hasRevealedInCurrentAttemptRef.current = true;
+        const initialCount = queue[currentIndex]?.revealCount || 0;
+        const nextCount = initialCount + 1;
+        currentRevealCountRef.current = nextCount;
+        setCurrentRevealCount(nextCount);
+      }
       setRevealedSideIndex(Math.max(1, sides.length - 1));
       dropAnim.setValue(0);
       Animated.spring(dropAnim, {
@@ -983,7 +1000,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
               />
               <Text style={[styles.tapPromptText, currentRevealCount > 0 && { color: '#E11D48' }]}>
                 {revealedSideIndex > 0
-                  ? `Chạm vào thẻ để ẩn lại ${currentRevealCount > 1 ? `(đã lật ${currentRevealCount} lần)` : '(đã lật 1 lần)'}`
+                  ? `Chạm vào thẻ để ẩn lại ${currentRevealCount > 0 ? `(đã lật ${currentRevealCount} lần)` : ''}`
                   : currentRevealCount > 0
                     ? `Chạm để xem lại nghĩa (đã lật ${currentRevealCount} lần)`
                     : 'Chạm để xem nghĩa / mặt ẩn'}
