@@ -348,7 +348,7 @@ export function SettingsView({
                     onPress={() => setIsEditingName(true)}
                     activeOpacity={0.7}
                   >
-                    <Feather name="edit-2" size={14} color="#2563EB" />
+                    <Feather name="edit-2" size={14} color="#444444" />
                     <Text style={styles.editNameBtnText}>Đổi tên</Text>
                   </TouchableOpacity>
                 </View>
@@ -396,7 +396,7 @@ export function SettingsView({
             activeOpacity={0.7}
           >
             <View style={styles.voiceDropdownIconBox}>
-              <Feather name="mic" size={17} color="#2563EB" />
+              <Feather name="mic" size={17} color="#444444" />
             </View>
             <View style={{ flex: 1, marginRight: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -417,7 +417,7 @@ export function SettingsView({
             <View style={styles.voiceDropdownAction}>
               <View style={styles.changePill}>
                 <Text style={styles.changePillText}>Đổi</Text>
-                <Feather name="chevron-right" size={13} color="#2563EB" />
+                <Feather name="chevron-right" size={13} color="#444444" />
               </View>
             </View>
           </TouchableOpacity>
@@ -487,17 +487,17 @@ export function SettingsView({
             <Feather
               name={isTestingSpeech ? 'volume-2' : 'volume-1'}
               size={17}
-              color={isTestingSpeech ? '#FFFFFF' : '#2563EB'}
+              color="#FFFFFF"
               style={{ marginRight: 8 }}
             />
-            <Text style={[styles.testSpeechBtnText, isTestingSpeech && styles.testSpeechBtnTextActive]}>
+            <Text style={styles.testSpeechBtnText}>
               {isTestingSpeech ? 'Đang phát âm thử...' : 'Nghe thử câu mẫu phát âm'}
             </Text>
           </TouchableOpacity>
 
           {/* Tip Card */}
           <View style={styles.tipCard}>
-            <Ionicons name="information-circle-outline" size={18} color="#2563EB" style={{ marginRight: 8, marginTop: 1 }} />
+            <Ionicons name="information-circle-outline" size={18} color="#444444" style={{ marginRight: 8, marginTop: 1 }} />
             <Text style={styles.tipCardText}>
               <Text style={{ fontWeight: '700' }}>Mẹo giọng đọc:</Text> Bạn có thể tải thêm giọng Siri, Ava, Zoe, Oliver tự nhiên trong <Text style={{ fontWeight: '600' }}>Cài đặt thiết bị &gt; Trợ năng &gt; Đọc nội dung &gt; Giọng nói</Text>.
             </Text>
@@ -511,7 +511,7 @@ export function SettingsView({
           <View style={styles.switchRow}>
             <View style={styles.switchInfo}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Feather name="bell" size={15} color="#2563EB" />
+                <Feather name="bell" size={15} color="#444444" />
                 <Text style={styles.switchTitle}>Nhắc học từ vựng</Text>
               </View>
               <Text style={styles.switchDesc}>Thông báo lúc 09:15 · 14:15 · 19:15</Text>
@@ -519,7 +519,7 @@ export function SettingsView({
             <Switch
               value={remindersEnabled}
               onValueChange={toggleReminders}
-              trackColor={{ false: '#E2E8F0', true: '#2563EB' }}
+              trackColor={{ false: '#E2E8F0', true: '#262626' }}
               thumbColor="#FFFFFF"
             />
           </View>
@@ -530,7 +530,7 @@ export function SettingsView({
           <View style={styles.switchRow}>
             <View style={styles.switchInfo}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <MaterialCommunityIcons name="brain" size={16} color="#2563EB" />
+                <MaterialCommunityIcons name="brain" size={16} color="#444444" />
                 <Text style={styles.switchTitle}>Tự động điều chỉnh theo năng lực</Text>
               </View>
               <Text style={styles.switchDesc}>
@@ -540,7 +540,7 @@ export function SettingsView({
             <Switch
               value={adaptiveEnabled}
               onValueChange={(val) => saveAdaptive(val)}
-              trackColor={{ false: '#E2E8F0', true: '#2563EB' }}
+              trackColor={{ false: '#E2E8F0', true: '#262626' }}
               thumbColor="#FFFFFF"
             />
           </View>
@@ -594,7 +594,7 @@ export function SettingsView({
         <View style={styles.cardBox}>
           <View style={styles.infoRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Feather name="cpu" size={15} color="#2563EB" />
+              <Feather name="cpu" size={15} color="#444444" />
               <Text style={styles.infoTitle}>Mô hình thuật toán</Text>
             </View>
             <Text style={styles.infoValue}>FSRS v6</Text>
@@ -602,7 +602,7 @@ export function SettingsView({
           <View style={styles.divider} />
           <View style={styles.infoRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Feather name="target" size={15} color="#16A34A" />
+              <Feather name="target" size={15} color="#444444" />
               <Text style={styles.infoTitle}>Tỉ lệ ghi nhớ mục tiêu</Text>
             </View>
             <Text style={styles.infoValue}>90%</Text>
@@ -610,7 +610,7 @@ export function SettingsView({
           <View style={styles.divider} />
           <View style={styles.infoRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Feather name="repeat" size={15} color="#D97706" />
+              <Feather name="repeat" size={15} color="#444444" />
               <Text style={styles.infoTitle}>Cơ chế phản hồi</Text>
             </View>
             <Text style={styles.infoValue}>Quên / Nhớ + Đếm số lần lật</Text>
@@ -621,8 +621,8 @@ export function SettingsView({
         <Text style={styles.sectionHeader}>DỮ LIỆU & SAO LƯU</Text>
         <View style={styles.cardBox}>
           <TouchableOpacity style={styles.menuRow} onPress={handleMochiImport} activeOpacity={0.7}>
-            <View style={[styles.menuIconBox, { backgroundColor: '#EFF6FF' }]}>
-              <Feather name="upload" size={16} color="#2563EB" />
+            <View style={[styles.menuIconBox, { backgroundColor: '#F5F5F5' }]}>
+              <Feather name="upload" size={16} color="#262626" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.menuRowText}>Nhập bộ thẻ Mochi (.mochi)</Text>
@@ -634,8 +634,8 @@ export function SettingsView({
           <View style={styles.divider} />
 
           <TouchableOpacity style={styles.menuRow} onPress={handleMochiExport} activeOpacity={0.7}>
-            <View style={[styles.menuIconBox, { backgroundColor: '#F0FDF4' }]}>
-              <Feather name="share-2" size={16} color="#16A34A" />
+            <View style={[styles.menuIconBox, { backgroundColor: '#F5F5F5' }]}>
+              <Feather name="share-2" size={16} color="#262626" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.menuRowText}>Xuất bản sao lưu (.mochi)</Text>
@@ -651,8 +651,8 @@ export function SettingsView({
             onPress={() => setShowImportBox(!showImportBox)}
             activeOpacity={0.7}
           >
-            <View style={[styles.menuIconBox, { backgroundColor: '#FAF5FF' }]}>
-              <Feather name="download" size={16} color="#9333EA" />
+            <View style={[styles.menuIconBox, { backgroundColor: '#F5F5F5' }]}>
+              <Feather name="download" size={16} color="#262626" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.menuRowText}>Nhập thẻ nhanh từ Markdown</Text>
@@ -773,7 +773,7 @@ export function SettingsView({
                     activeOpacity={0.7}
                   >
                     <View style={styles.voiceModalItemIcon}>
-                      <Feather name="smartphone" size={18} color={!selectedVoice ? '#2563EB' : '#64748B'} />
+                      <Feather name="smartphone" size={18} color={!selectedVoice ? '#262626' : '#64748B'} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.voiceModalItemName, !selectedVoice && styles.voiceModalItemNameActive]}>
@@ -782,7 +782,7 @@ export function SettingsView({
                       <Text style={styles.voiceModalItemDesc}>Tự động đồng bộ theo cài đặt hệ điều hành</Text>
                     </View>
                     {!selectedVoice && (
-                      <Ionicons name="checkmark-circle" size={20} color="#2563EB" />
+                      <Ionicons name="checkmark-circle" size={20} color="#262626" />
                     )}
                   </TouchableOpacity>
 
@@ -798,7 +798,7 @@ export function SettingsView({
                         activeOpacity={0.7}
                       >
                         <View style={styles.voiceModalItemIcon}>
-                          <Feather name="mic" size={17} color={isSelected ? '#2563EB' : '#64748B'} />
+                          <Feather name="mic" size={17} color={isSelected ? '#262626' : '#64748B'} />
                         </View>
                         <View style={{ flex: 1, marginRight: 8 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -831,12 +831,12 @@ export function SettingsView({
                           <Feather
                             name={isPreviewing ? 'volume-2' : 'volume-1'}
                             size={16}
-                            color={isPreviewing ? '#2563EB' : '#64748B'}
+                            color={isPreviewing ? '#FFFFFF' : '#444444'}
                           />
                         </TouchableOpacity>
 
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={20} color="#2563EB" style={{ marginLeft: 8 }} />
+                          <Ionicons name="checkmark-circle" size={20} color="#262626" style={{ marginLeft: 8 }} />
                         )}
                       </TouchableOpacity>
                     );
@@ -854,7 +854,7 @@ export function SettingsView({
                         activeOpacity={0.7}
                       >
                         <View style={styles.voiceModalItemIcon}>
-                          <Feather name="mic" size={17} color={isSelected ? '#2563EB' : '#64748B'} />
+                          <Feather name="mic" size={17} color={isSelected ? '#262626' : '#64748B'} />
                         </View>
                         <View style={{ flex: 1, marginRight: 8 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -875,11 +875,11 @@ export function SettingsView({
                             handlePreviewVoice(v);
                           }}
                         >
-                          <Feather name={isPreviewing ? 'volume-2' : 'volume-1'} size={16} color={isPreviewing ? '#2563EB' : '#64748B'} />
+                          <Feather name={isPreviewing ? 'volume-2' : 'volume-1'} size={16} color={isPreviewing ? '#FFFFFF' : '#444444'} />
                         </TouchableOpacity>
 
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={20} color="#2563EB" style={{ marginLeft: 8 }} />
+                          <Ionicons name="checkmark-circle" size={20} color="#262626" style={{ marginLeft: 8 }} />
                         )}
                       </TouchableOpacity>
                     );
@@ -897,7 +897,7 @@ export function SettingsView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC'
+    backgroundColor: '#FAFAFA'
   },
   scrollContent: {
     padding: 16,
@@ -906,7 +906,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#8E8E93',
     letterSpacing: 0.8,
     marginTop: 16,
     marginBottom: 8,
@@ -914,16 +914,11 @@ const styles = StyleSheet.create({
   },
   cardBox: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 12,
     padding: 14,
     marginBottom: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
     borderWidth: 1,
-    borderColor: '#F1F5F9'
+    borderColor: '#EAEAEA'
   },
   // Profile styles
   profileRow: {
@@ -934,7 +929,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 23,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#262626',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12
@@ -947,11 +942,11 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#0F172A'
+    color: '#222222'
   },
   profileSub: {
     fontSize: 12.5,
-    color: '#64748B',
+    color: '#666666',
     marginTop: 2
   },
   nameDisplayRow: {
@@ -966,12 +961,14 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 8,
-    backgroundColor: '#EFF6FF'
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E5E5E5'
   },
   editNameBtnText: {
     fontSize: 12.5,
     fontWeight: '600',
-    color: '#2563EB'
+    color: '#222222'
   },
   nameEditRow: {
     flexDirection: 'row',
@@ -981,14 +978,16 @@ const styles = StyleSheet.create({
   nameInput: {
     flex: 1,
     height: 38,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
     paddingHorizontal: 10,
     fontSize: 14,
-    color: '#0F172A'
+    color: '#222222',
+    borderWidth: 1,
+    borderColor: '#E5E5E5'
   },
   saveNameBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#262626',
     paddingHorizontal: 14,
     height: 38,
     borderRadius: 8,
@@ -1004,14 +1003,14 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F5F5F5',
     alignItems: 'center',
     justifyContent: 'center'
   },
   // Segmented control
   inputLabel: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: '#888888',
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 6
@@ -1028,14 +1027,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 9,
     paddingHorizontal: 6,
-    borderRadius: 9,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0'
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E5E5E5'
   },
   segmentBtnActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB'
+    backgroundColor: '#262626',
+    borderColor: '#262626'
   },
   flagIcon: {
     fontSize: 15,
@@ -1044,10 +1043,10 @@ const styles = StyleSheet.create({
   segmentBtnText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#475569'
+    color: '#555555'
   },
   segmentBtnTextActive: {
-    color: '#1D4ED8',
+    color: '#FFFFFF',
     fontWeight: '700'
   },
   // Voice Dropdown Button
@@ -1057,16 +1056,16 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
     marginVertical: 4
   },
   voiceDropdownIconBox: {
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F0F0F0',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10
@@ -1074,11 +1073,11 @@ const styles = StyleSheet.create({
   voiceDropdownName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B'
+    color: '#222222'
   },
   voiceDropdownDesc: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#666666',
     marginTop: 2
   },
   voiceDropdownAction: {
@@ -1087,7 +1086,7 @@ const styles = StyleSheet.create({
   changePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F0F0F0',
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 8,
@@ -1096,7 +1095,7 @@ const styles = StyleSheet.create({
   changePillText: {
     fontSize: 12.5,
     fontWeight: '600',
-    color: '#2563EB'
+    color: '#222222'
   },
   // Chips row (pitch & speed)
   chipsRow: {
@@ -1109,18 +1108,18 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 11,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E5E5E5'
   },
   chipPillActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB'
+    backgroundColor: '#262626',
+    borderColor: '#262626'
   },
   chipPillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#475569'
+    color: '#444444'
   },
   chipPillTextActive: {
     color: '#FFFFFF'
@@ -1129,38 +1128,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 10,
+    backgroundColor: '#262626',
+    borderRadius: 8,
     paddingVertical: 11,
     marginTop: 10
   },
   testSpeechBtnActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB'
+    backgroundColor: '#1E1E1E'
   },
   testSpeechBtnText: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#1D4ED8'
-  },
-  testSpeechBtnTextActive: {
     color: '#FFFFFF'
   },
   tipCard: {
     flexDirection: 'row',
-    backgroundColor: '#F0F9FF',
-    borderRadius: 9,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
     padding: 10,
     marginTop: 10,
     borderWidth: 1,
-    borderColor: '#BAE6FD'
+    borderColor: '#E5E5E5'
   },
   tipCardText: {
     flex: 1,
     fontSize: 11.5,
-    color: '#0369A1',
+    color: '#555555',
     lineHeight: 16.5
   },
   // Switch row
@@ -1177,23 +1170,23 @@ const styles = StyleSheet.create({
   switchTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B'
+    color: '#222222'
   },
   switchDesc: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#666666',
     marginTop: 2
   },
   limitsBox: {
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#F1F5F9'
+    borderTopColor: '#EEEEEE'
   },
   limitItem: {},
   limitLabel: {
     fontSize: 10.5,
-    color: '#94A3B8',
+    color: '#888888',
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 6
@@ -1208,27 +1201,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E5E5E5'
   },
   presetChipActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB'
+    backgroundColor: '#262626',
+    borderColor: '#262626'
   },
   presetChipText: {
     fontSize: 12.5,
     fontWeight: '600',
-    color: '#475569'
+    color: '#444444'
   },
   presetChipTextActive: {
-    color: '#2563EB',
+    color: '#FFFFFF',
     fontWeight: '700'
   },
   // Common info rows & divider
   divider: {
     height: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F0F0F0',
     marginVertical: 10
   },
   infoRow: {
@@ -1239,12 +1232,12 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 13.5,
-    color: '#334155'
+    color: '#444444'
   },
   infoValue: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#0F172A'
+    color: '#222222'
   },
   // Data & Menu rows
   menuRow: {
@@ -1263,17 +1256,17 @@ const styles = StyleSheet.create({
   menuRowText: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#1E293B'
+    color: '#222222'
   },
   menuRowDesc: {
     fontSize: 11.5,
-    color: '#64748B',
+    color: '#666666',
     marginTop: 2
   },
   importArea: {
     marginTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#EEEEEE',
     paddingTop: 12
   },
   deckSelectContainer: {
@@ -1281,7 +1274,7 @@ const styles = StyleSheet.create({
   },
   deckSelectLabel: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#555555',
     marginBottom: 6,
     fontWeight: '600'
   },
@@ -1292,17 +1285,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E5E5E5'
   },
   deckChipActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB'
+    backgroundColor: '#262626',
+    borderColor: '#262626'
   },
   deckChipText: {
     fontSize: 12,
-    color: '#475569',
+    color: '#444444',
     fontWeight: '600'
   },
   deckChipTextActive: {
@@ -1310,23 +1303,23 @@ const styles = StyleSheet.create({
   },
   importHint: {
     fontSize: 11.5,
-    color: '#64748B',
+    color: '#666666',
     marginBottom: 8
   },
   importInput: {
     height: 90,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F5F5F5',
     borderRadius: 8,
     padding: 10,
     fontSize: 13,
-    color: '#0F172A',
+    color: '#222222',
     textAlignVertical: 'top',
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E5E5E5'
   },
   importSubmitBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#262626',
     paddingVertical: 10,
     borderRadius: 8,
     alignItems: 'center'
@@ -1360,31 +1353,33 @@ const styles = StyleSheet.create({
   voiceModalTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0F172A'
+    color: '#222222'
   },
   voiceModalSubtitle: {
     fontSize: 12.5,
-    color: '#64748B',
+    color: '#666666',
     marginTop: 2
   },
   modalCloseBtn: {
     padding: 6,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: '#F5F5F5'
   },
   searchBarBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F5F5F5',
     borderRadius: 10,
     paddingHorizontal: 12,
     height: 40,
-    marginBottom: 12
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E5E5'
   },
   searchBarInput: {
     flex: 1,
     fontSize: 13.5,
-    color: '#0F172A'
+    color: '#222222'
   },
   voiceModalList: {
     maxHeight: 460
@@ -1396,19 +1391,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 10,
     marginBottom: 6,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFAFA',
     borderWidth: 1.5,
-    borderColor: '#E2E8F0'
+    borderColor: '#EAEAEA'
   },
   voiceModalItemActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB'
+    backgroundColor: '#F5F5F5',
+    borderColor: '#262626'
   },
   voiceModalItemIcon: {
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#F0F0F0',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10
@@ -1416,15 +1411,15 @@ const styles = StyleSheet.create({
   voiceModalItemName: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#1E293B'
+    color: '#222222'
   },
   voiceModalItemNameActive: {
-    color: '#1D4ED8',
+    color: '#000000',
     fontWeight: '700'
   },
   voiceModalItemDesc: {
     fontSize: 11.5,
-    color: '#64748B',
+    color: '#666666',
     marginTop: 2
   },
   previewVoiceBtn: {
@@ -1432,15 +1427,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E5E5',
     marginLeft: 6
   },
   previewVoiceBtnActive: {
-    backgroundColor: '#DBEAFE',
-    borderColor: '#2563EB'
+    backgroundColor: '#262626',
+    borderColor: '#262626'
   },
   langTag: {
-    backgroundColor: '#EEF2F6',
+    backgroundColor: '#F0F0F0',
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4
@@ -1448,10 +1443,10 @@ const styles = StyleSheet.create({
   langTagText: {
     fontSize: 9.5,
     fontWeight: '600',
-    color: '#4B5563'
+    color: '#555555'
   },
   enhancedTag: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#EFEFEF',
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4
@@ -1459,6 +1454,6 @@ const styles = StyleSheet.create({
   enhancedTagText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#166534'
+    color: '#222222'
   }
 });

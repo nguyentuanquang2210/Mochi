@@ -272,9 +272,9 @@ export function CardEditor({
           onPress={() => setShowDeckPickerModal(true)}
           activeOpacity={0.7}
         >
-          <Ionicons name="folder-sharp" size={14} color="#2563EB" style={{ marginRight: 6 }} />
+          <Ionicons name="folder-sharp" size={14} color="#444444" style={{ marginRight: 6 }} />
           <Text numberOfLines={1} style={styles.deckSelectorText}>{currentDeckName}</Text>
-          <Feather name="chevron-down" size={13} color="#64748B" style={{ marginLeft: 4 }} />
+          <Feather name="chevron-down" size={13} color="#666666" style={{ marginLeft: 4 }} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -303,7 +303,7 @@ export function CardEditor({
             onPress={toggleRawMarkdownMode}
             activeOpacity={0.7}
           >
-            <Feather name={isRawMarkdown ? 'layers' : 'code'} size={13} color="#2563EB" style={{ marginRight: 4 }} />
+            <Feather name={isRawMarkdown ? 'layers' : 'code'} size={13} color="#444444" style={{ marginRight: 4 }} />
             <Text style={styles.modeToggleText}>
               {isRawMarkdown ? 'Chế độ từng mặt' : 'Markdown thô'}
             </Text>
@@ -329,7 +329,7 @@ export function CardEditor({
                   onPress={loadWordSuggestions}
                   activeOpacity={0.7}
                 >
-                  <Ionicons name="sparkles" size={13} color="#2563EB" style={{ marginRight: 4 }} />
+                  <Ionicons name="sparkles" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
                   <Text style={styles.quickDictBtnText}>
                     {suggestionsLoading ? 'Đang tìm...' : 'Gợi ý từ điển & ảnh'}
                   </Text>
@@ -377,8 +377,8 @@ export function CardEditor({
               return (
                 <View key={sideIndex} style={styles.sideCardBox}>
                   <View style={styles.sideCardHeader}>
-                    <View style={[styles.sideBadge, { backgroundColor: '#F0FDF4' }]}>
-                      <Text style={[styles.sideBadgeText, { color: '#166534' }]}>
+                    <View style={styles.sideBadge}>
+                      <Text style={styles.sideBadgeText}>
                         {isFirstHidden ? 'MẶT ẨN 1 · NGHĨA & GIẢI THÍCH' : `MẶT ẨN ${sideIndex} · CÂU VÍ DỤ / NGỮ CẢNH`}
                       </Text>
                     </View>
@@ -390,7 +390,7 @@ export function CardEditor({
                         onPress={() => removeSide(sideIndex)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Feather name="trash-2" size={14} color="#EF4444" />
+                        <Feather name="trash-2" size={14} color="#666666" />
                         <Text style={styles.deleteSideText}>Xóa mặt này</Text>
                       </TouchableOpacity>
                     )}
@@ -415,7 +415,7 @@ export function CardEditor({
 
             {/* Button "+ Thêm mặt ẩn tiếp theo" */}
             <TouchableOpacity style={styles.addSideBtn} onPress={addSide} activeOpacity={0.7}>
-              <Feather name="plus-circle" size={16} color="#2563EB" style={{ marginRight: 6 }} />
+              <Feather name="plus-circle" size={16} color="#262626" style={{ marginRight: 6 }} />
               <Text style={styles.addSideBtnText}>
                 Thêm mặt ẩn tiếp theo (Mặt {sides.length + 1})
               </Text>
@@ -515,7 +515,7 @@ export function CardEditor({
             activeOpacity={0.7}
           >
             <View style={styles.metaRowLeft}>
-              <Ionicons name="folder-outline" size={17} color="#2563EB" style={{ marginRight: 10 }} />
+              <Ionicons name="folder-outline" size={17} color="#444444" style={{ marginRight: 10 }} />
               <Text style={styles.metaRowTitle}>Bộ thẻ chứa từ này</Text>
             </View>
             <View style={styles.metaRowRight}>
@@ -553,7 +553,7 @@ export function CardEditor({
             <Switch
               value={isPinned}
               onValueChange={setIsPinned}
-              trackColor={{ false: '#E2E8F0', true: '#2563EB' }}
+              trackColor={{ false: '#E0E0E0', true: '#262626' }}
               thumbColor="#FFFFFF"
             />
           </View>
@@ -569,7 +569,7 @@ export function CardEditor({
             <Switch
               value={reviewReverse}
               onValueChange={setReviewReverse}
-              trackColor={{ false: '#E2E8F0', true: '#2563EB' }}
+              trackColor={{ false: '#E0E0E0', true: '#262626' }}
               thumbColor="#FFFFFF"
             />
           </View>
@@ -615,14 +615,14 @@ export function CardEditor({
                         <Ionicons
                           name="folder-sharp"
                           size={18}
-                          color={isSelected ? '#2563EB' : '#64748B'}
+                          color={isSelected ? '#262626' : '#64748B'}
                           style={{ marginRight: 10 }}
                         />
                         <Text style={[styles.deckModalItemText, isSelected && styles.deckModalItemTextActive]}>
                           {d.name}
                         </Text>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={18} color="#2563EB" style={{ marginLeft: 'auto' }} />
+                          <Ionicons name="checkmark-circle" size={18} color="#262626" style={{ marginLeft: 'auto' }} />
                         )}
                       </TouchableOpacity>
                     );
@@ -664,21 +664,21 @@ const styles = StyleSheet.create({
   deckSelectorBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F5F5F5',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     maxWidth: 180,
     borderWidth: 1,
-    borderColor: '#DBEAFE'
+    borderColor: '#E5E5E5'
   },
   deckSelectorText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1E40AF'
+    color: '#222222'
   },
   saveBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#262626',
     paddingHorizontal: 16,
     paddingVertical: 7,
     borderRadius: 8
@@ -704,7 +704,7 @@ const styles = StyleSheet.create({
   screenHeading: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A'
+    color: '#222222'
   },
   modeToggleBtn: {
     flexDirection: 'row',
@@ -712,14 +712,14 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 8,
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#DBEAFE'
+    borderColor: '#E5E5E5'
   },
   modeToggleText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#2563EB'
+    color: '#333333'
   },
   // Structured Side Cards
   sideCardBox: {
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E5E5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -742,40 +742,40 @@ const styles = StyleSheet.create({
     marginBottom: 10
   },
   sideBadge: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#F5F5F5',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 6
   },
   sideBadgeText: {
     fontSize: 10.5,
     fontWeight: '700',
-    color: '#1D4ED8',
+    color: '#555555',
     letterSpacing: 0.5
   },
   quickDictBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    backgroundColor: '#262626',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 6
   },
   quickDictBtnText: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: '#2563EB'
+    color: '#FFFFFF'
   },
   frontInput: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFAFA',
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#CBD5E1',
+    borderColor: '#D4D4D4',
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A'
+    color: '#222222'
   },
   ipaRow: {
     flexDirection: 'row',
@@ -791,24 +791,24 @@ const styles = StyleSheet.create({
   },
   ipaText: {
     fontSize: 13,
-    color: '#0F172A',
+    color: '#333333',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace'
   },
   ipaHint: {
     fontSize: 12,
-    color: '#94A3B8'
+    color: '#888888'
   },
   backInput: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFAFA',
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#E0E0E0',
     paddingHorizontal: 14,
     paddingVertical: 12,
     minHeight: 100,
     fontSize: 15,
     lineHeight: 22,
-    color: '#0F172A'
+    color: '#222222'
   },
   deleteSideBtn: {
     flexDirection: 'row',
@@ -817,7 +817,7 @@ const styles = StyleSheet.create({
   },
   deleteSideText: {
     fontSize: 11.5,
-    color: '#EF4444',
+    color: '#666666',
     fontWeight: '600'
   },
   addSideBtn: {
@@ -825,17 +825,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F5F5',
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#BFDBFE',
+    borderColor: '#CCCCCC',
     borderStyle: 'dashed',
     marginBottom: 14
   },
   addSideBtnText: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#2563EB'
+    color: '#262626'
   },
   // Raw markdown mode
   rawMarkdownContainer: {
@@ -844,7 +844,7 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E5E5E5'
   },
   rawMarkdownHeader: {
     flexDirection: 'row',
@@ -855,7 +855,7 @@ const styles = StyleSheet.create({
   rawMarkdownLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#666666',
     letterSpacing: 0.5
   },
   hideKeyboardBtn: {
@@ -873,15 +873,15 @@ const styles = StyleSheet.create({
     color: '#475569'
   },
   rawContentInput: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFAFA',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#D4D4D4',
     padding: 14,
     minHeight: 200,
     fontSize: 15,
     lineHeight: 24,
-    color: '#0F172A'
+    color: '#222222'
   },
   // Image box
   selectedImageBox: {
@@ -892,22 +892,22 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E5E5E5'
   },
   selectedImageThumb: {
     width: 60,
     height: 60,
     borderRadius: 8,
-    backgroundColor: '#F1F5F9'
+    backgroundColor: '#F5F5F5'
   },
   selectedImageTitle: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#0F172A'
+    color: '#222222'
   },
   selectedImageSub: {
     fontSize: 11.5,
-    color: '#64748B',
+    color: '#666666',
     marginTop: 2
   },
   removeImageBtn: {
@@ -920,13 +920,13 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E5E5E5'
   },
   insertSensesBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2563EB',
+    backgroundColor: '#262626',
     borderRadius: 9,
     paddingVertical: 10,
     marginTop: 10
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E5E5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
   metaCardHeading: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#666666',
     letterSpacing: 0.7,
     marginBottom: 12
   },
@@ -969,7 +969,7 @@ const styles = StyleSheet.create({
   metaRowTitle: {
     fontSize: 13.5,
     fontWeight: '500',
-    color: '#1E293B'
+    color: '#222222'
   },
   metaRowRight: {
     flexDirection: 'row',
@@ -978,7 +978,7 @@ const styles = StyleSheet.create({
   metaRowValue: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#2563EB'
+    color: '#222222'
   },
   tagRow: {
     paddingVertical: 4
@@ -986,17 +986,17 @@ const styles = StyleSheet.create({
   tagRowLabel: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#1E293B'
+    color: '#222222'
   },
   tagInput: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAFAFA',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E5E5',
     paddingHorizontal: 10,
     height: 38,
     fontSize: 13,
-    color: '#0F172A'
+    color: '#222222'
   },
   toggleRow: {
     flexDirection: 'row',
@@ -1011,7 +1011,7 @@ const styles = StyleSheet.create({
   toggleTitle: {
     fontSize: 13.5,
     fontWeight: '500',
-    color: '#1E293B'
+    color: '#222222'
   },
   divider: {
     height: 1,
@@ -1044,7 +1044,7 @@ const styles = StyleSheet.create({
   deckModalTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#0F172A'
+    color: '#222222'
   },
   deckModalCloseBtn: {
     padding: 4,
@@ -1060,14 +1060,14 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   deckModalItemActive: {
-    backgroundColor: '#EFF6FF'
+    backgroundColor: '#F0F0F0'
   },
   deckModalItemText: {
     fontSize: 14,
-    color: '#334155'
+    color: '#444444'
   },
   deckModalItemTextActive: {
     fontWeight: '700',
-    color: '#1D4ED8'
+    color: '#111111'
   }
 });

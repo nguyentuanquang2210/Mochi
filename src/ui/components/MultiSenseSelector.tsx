@@ -50,7 +50,7 @@ export function MultiSenseSelector({
       {/* Tiêu đề & Chọn tất cả */}
       <View style={styles.headerRow}>
         <View style={styles.titleWithIcon}>
-          <Ionicons name="book-outline" size={15} color="#2563EB" style={{ marginRight: 5 }} />
+          <Ionicons name="book-outline" size={15} color="#262626" style={{ marginRight: 5 }} />
           <Text style={styles.titleText}>CHỌN NGHĨA PHÙ HỢP ({translatedSenses.length})</Text>
         </View>
 
@@ -91,7 +91,7 @@ export function MultiSenseSelector({
                 <Ionicons
                   name={isSelected ? 'checkbox' : 'square-outline'}
                   size={20}
-                  color={isSelected ? '#2563EB' : '#94A3B8'}
+                  color={isSelected ? '#262626' : '#94A3B8'}
                 />
               </View>
 
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   },
   toggleAllText: {
     fontSize: 12,
-    color: '#2563EB',
+    color: '#262626',
     fontWeight: '600'
   },
   helperText: {
@@ -198,8 +198,8 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0'
   },
   senseCardSelected: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#F0F7FF'
+    borderColor: '#262626',
+    backgroundColor: '#F5F5F5'
   },
   senseCardHighPriority: {
     borderColor: '#CBD5E1'
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     padding: 6,
     marginTop: 2,
     borderLeftWidth: 2.5,
-    borderLeftColor: '#3B82F6'
+    borderLeftColor: '#262626'
   },
   exampleEnText: {
     fontSize: 12,
