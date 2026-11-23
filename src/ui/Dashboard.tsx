@@ -199,7 +199,9 @@ export function Dashboard({ decks, onOpenDrawer }: DashboardProps) {
         >
           <View style={styles.streakBannerLeft}>
             <View style={[styles.streakFlameCircle, stats?.isStreakFrozen && styles.streakFlameCircleFrozen]}>
-              <Text style={styles.streakFlameEmoji}>{stats?.isStreakFrozen ? '❄️' : '🔥'}</Text>
+              <Text style={styles.streakFlameEmoji}>
+                {(stats?.streakDays ?? 0) === 0 ? '🔥' : stats?.isStreakFrozen ? '❄️' : '🔥'}
+              </Text>
             </View>
             <View style={styles.streakBannerTextCol}>
               <View style={styles.streakNumberRow}>
@@ -211,9 +213,9 @@ export function Dashboard({ decks, onOpenDrawer }: DashboardProps) {
               <Text style={styles.streakHintSub}>
                 {stats?.isStreakActiveToday
                   ? 'Đã học hôm nay! Chạm để xem chi tiết lịch →'
-                  : stats?.isStreakFrozen
-                  ? 'Chuỗi đang đóng băng! Chạm xem lịch →'
-                  : 'Bắt đầu chuỗi hôm nay! Chạm xem lịch →'}
+                  : (stats?.streakDays ?? 0) > 0
+                  ? 'Chưa học hôm nay! Học ngay để giữ streak →'
+                  : 'Bắt đầu chuỗi học hôm nay! Chạm xem lịch →'}
               </Text>
             </View>
           </View>

@@ -864,13 +864,24 @@ export const CardRepository = {
       activeDaysSet.add(key);
     }
 
-    // 4. Streak Calculation (Duolingo style)
+    // 4. Global Streak Calculation (Across all decks, up to 730 days)
+    const globalLogs = await db.getAllAsync<{ reviewed_at: number }>(
+      'SELECT DISTINCT reviewed_at FROM review_logs WHERE reviewed_at >= ? ORDER BY reviewed_at ASC',
+      now - 730 * oneDayMs
+    );
+    const globalActiveDaysSet = new Set<string>();
+    for (const log of globalLogs) {
+      const d = new Date(log.reviewed_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      globalActiveDaysSet.add(key);
+    }
+
     const today = new Date(now);
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const yesterday = new Date(now - oneDayMs);
     const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
 
-    const isStreakActiveToday = activeDaysSet.has(todayStr);
+    const isStreakActiveToday = globalActiveDaysSet.has(todayStr);
     let streakDays = 0;
     let isStreakFrozen = false;
 
@@ -879,7 +890,7 @@ export const CardRepository = {
       let checkDate = new Date(now - oneDayMs);
       while (true) {
         const checkKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
-        if (activeDaysSet.has(checkKey)) {
+        if (globalActiveDaysSet.has(checkKey)) {
           streakDays++;
           checkDate = new Date(checkDate.getTime() - oneDayMs);
         } else {
@@ -887,12 +898,12 @@ export const CardRepository = {
         }
       }
       isStreakFrozen = false;
-    } else if (activeDaysSet.has(yesterdayStr)) {
+    } else if (globalActiveDaysSet.has(yesterdayStr)) {
       streakDays = 1;
       let checkDate = new Date(now - 2 * oneDayMs);
       while (true) {
         const checkKey = `${checkDate.getFullYear()}-${String(checkDate.getMonth() + 1).padStart(2, '0')}-${String(checkDate.getDate()).padStart(2, '0')}`;
-        if (activeDaysSet.has(checkKey)) {
+        if (globalActiveDaysSet.has(checkKey)) {
           streakDays++;
           checkDate = new Date(checkDate.getTime() - oneDayMs);
         } else {
@@ -902,7 +913,7 @@ export const CardRepository = {
       isStreakFrozen = true; // Ice blue frozen flame! Needs study today to unfreeze
     } else {
       streakDays = 0;
-      isStreakFrozen = true;
+      isStreakFrozen = false;
     }
 
     // 5. Chart 1: Reviews Per Day (Last 7 days)
@@ -1024,7 +1035,7 @@ export const CardRepository = {
       streakDays,
       isStreakActiveToday,
       isStreakFrozen,
-      activeDates: Array.from(activeDaysSet),
+      activeDates: Array.from(globalActiveDaysSet),
       streakFrozenDates,
       cumulativeLearnedChart,
       reviewsChart,
