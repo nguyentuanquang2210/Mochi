@@ -2,11 +2,15 @@ import React, { useEffect, useState } from 'react';
 import * as Speech from 'expo-speech';
 import {
   Alert,
+  Modal,
+  Platform,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View
 } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from './components/Icons';
@@ -33,6 +37,7 @@ export function SettingsView({
   onRefresh
 }: SettingsViewProps) {
   const [name, setName] = useState(userName);
+  const [isEditingName, setIsEditingName] = useState(false);
   const [importText, setImportText] = useState('');
   const [selectedDeckForImport, setSelectedDeckForImport] = useState(decks[0]?.id || '');
   const [showImportBox, setShowImportBox] = useState(false);
@@ -49,6 +54,10 @@ export function SettingsView({
   const [targetMinutes, setTargetMinutes] = useState('15');
   const [remindersEnabled, setRemindersEnabled] = useState(false);
 
+  // Modal chọn giọng đọc dạng dropdown sheet
+  const [showVoiceModal, setShowVoiceModal] = useState(false);
+  const [voiceSearchQuery, setVoiceSearchQuery] = useState('');
+
   useEffect(() => {
     const loadSpeechSettings = async () => {
       await SpeechService.init();
@@ -63,7 +72,9 @@ export function SettingsView({
     };
     loadSpeechSettings();
     AdaptiveLearningRepository.getSettings().then(s => {
-      setAdaptiveEnabled(s.enabled); setDailyNewLimit(String(s.dailyNewLimit)); setTargetMinutes(String(s.targetMinutes));
+      setAdaptiveEnabled(s.enabled);
+      setDailyNewLimit(String(s.dailyNewLimit));
+      setTargetMinutes(String(s.targetMinutes));
     });
   }, []);
 
@@ -92,6 +103,7 @@ export function SettingsView({
   const handleSelectVoice = async (voiceId: string | null) => {
     setSelectedVoice(voiceId);
     await SpeechService.updateSettings({ voiceIdentifier: voiceId });
+    setShowVoiceModal(false);
   };
 
   const handlePreviewDeviceVoice = async (voice: Speech.Voice) => {
@@ -145,27 +157,44 @@ export function SettingsView({
   const handleSaveName = () => {
     if (!name.trim()) return;
     onUpdateUserName(name.trim());
+    setIsEditingName(false);
     Alert.alert('Đã lưu', `Đã cập nhật tên người dùng thành ${name.trim()}`);
   };
 
-  const saveAdaptive = async (enabled = adaptiveEnabled) => {
-    const dailyNew = Math.max(0, Math.min(50, Number(dailyNewLimit) || 0));
-    const minutes = Math.max(5, Math.min(180, Number(targetMinutes) || 15));
+  const saveAdaptive = async (
+    enabled = adaptiveEnabled,
+    customNewLimit?: number,
+    customMinutes?: number
+  ) => {
+    const dailyNew = customNewLimit !== undefined
+      ? customNewLimit
+      : Math.max(0, Math.min(50, Number(dailyNewLimit) || 0));
+    const minutes = customMinutes !== undefined
+      ? customMinutes
+      : Math.max(5, Math.min(180, Number(targetMinutes) || 15));
+
     await AdaptiveLearningRepository.saveSettings({ enabled, dailyNewLimit: dailyNew, targetMinutes: minutes });
-    setAdaptiveEnabled(enabled); setDailyNewLimit(String(dailyNew)); setTargetMinutes(String(minutes)); onRefresh();
+    setAdaptiveEnabled(enabled);
+    setDailyNewLimit(String(dailyNew));
+    setTargetMinutes(String(minutes));
+    onRefresh();
   };
 
-  const toggleReminders = async () => {
+  const toggleReminders = async (val: boolean) => {
     try {
-      if (remindersEnabled) {
-        await StudyReminders.cancel(); setRemindersEnabled(false);
-        Alert.alert('Đã tắt nhắc học', 'Các nhắc học đã lên lịch đã được hủy.');
+      if (!val) {
+        await StudyReminders.cancel();
+        setRemindersEnabled(false);
+        Alert.alert('Đã tắt nhắc học', 'Các thông báo nhắc học đã được hủy.');
       } else {
         const enabled = await StudyReminders.schedule();
         setRemindersEnabled(enabled);
-        Alert.alert(enabled ? 'Đã bật nhắc học' : 'Cần cấp quyền', enabled
-          ? 'Mochi sẽ nhắc lúc 09:15, 14:15 và 19:15, tránh giờ nghỉ trưa và ban đêm.'
-          : 'Hãy cho phép thông báo trong cài đặt thiết bị để bật nhắc học.');
+        Alert.alert(
+          enabled ? 'Đã bật nhắc học' : 'Cần cấp quyền',
+          enabled
+            ? 'Mochi sẽ gửi thông báo lúc 09:15, 14:15 và 19:15 hằng ngày.'
+            : 'Hãy cho phép gửi thông báo trong cài đặt thiết bị để nhận nhắc học.'
+        );
       }
     } catch {
       Alert.alert('Chưa thể bật nhắc học', 'Hãy cập nhật Expo Go hoặc dùng bản ứng dụng đã build lại để bật thông báo. Phần học vẫn hoạt động bình thường.');
@@ -177,7 +206,6 @@ export function SettingsView({
       Alert.alert('Thiếu thông tin', 'Vui lòng dán nội dung thẻ và chọn một bộ thẻ.');
       return;
     }
-    // Cards can be separated by double newlines or '==='
     const cardBlocks = importText.split(/\n\s*===\s*\n|\n\n\n+/);
     let count = 0;
     for (const block of cardBlocks) {
@@ -198,14 +226,77 @@ export function SettingsView({
   const handleMochiImport = async () => {
     try {
       const result = await MochiFile.importFromPicker();
-      if (result.cards) { await onRefresh(); Alert.alert('Nhập Mochi hoàn tất', `Đã nhập ${result.cards} thẻ trong ${result.decks} bộ thẻ.`); }
-    } catch (error: any) { Alert.alert('Không thể nhập file Mochi', error?.message || 'File không đúng định dạng .mochi.'); }
+      if (result.cards) {
+        await onRefresh();
+        Alert.alert('Nhập Mochi hoàn tất', `Đã nhập ${result.cards} thẻ trong ${result.decks} bộ thẻ.`);
+      }
+    } catch (error: any) {
+      Alert.alert('Không thể nhập file Mochi', error?.message || 'File không đúng định dạng .mochi.');
+    }
   };
 
   const handleMochiExport = async () => {
-    try { await MochiFile.exportAll(); }
-    catch { Alert.alert('Không thể xuất file', 'Thiết bị này chưa hỗ trợ chia sẻ file.'); }
+    try {
+      await MochiFile.exportAll();
+    } catch {
+      Alert.alert('Không thể xuất file', 'Thiết bị này chưa hỗ trợ chia sẻ file.');
+    }
   };
+
+  // Lấy thông tin hiển thị của giọng đọc hiện tại
+  const getSelectedVoiceDisplay = () => {
+    if (!selectedVoice) {
+      return {
+        name: 'Giọng hệ thống mặc định',
+        sub: 'Tự động theo cài đặt của thiết bị',
+        badge: null
+      };
+    }
+    const deviceMatch = deviceVoices.find(v => v.identifier === selectedVoice || v.name === selectedVoice);
+    if (deviceMatch) {
+      return {
+        name: deviceMatch.name,
+        sub: deviceMatch.language,
+        badge: deviceMatch.quality === 'Enhanced' ? 'HD' : null
+      };
+    }
+    const popularMatch = POPULAR_VOICES.find(v => v.id === selectedVoice);
+    if (popularMatch) {
+      return {
+        name: popularMatch.name,
+        sub: popularMatch.desc,
+        badge: popularMatch.gender === 'female' ? 'Nữ' : 'Nam'
+      };
+    }
+    return {
+      name: selectedVoice,
+      sub: 'Giọng đọc đã chọn',
+      badge: null
+    };
+  };
+
+  const currentVoiceInfo = getSelectedVoiceDisplay();
+
+  // Danh sách giọng đọc khả dụng theo accent và tìm kiếm
+  const matchingDeviceVoices = deviceVoices.filter(v => {
+    const lang = v.language.toLowerCase();
+    if (speechAccent === 'en-US') {
+      return lang.includes('us') || lang === 'en';
+    }
+    return lang.includes('gb') || lang.includes('uk');
+  });
+
+  const baseDeviceList = matchingDeviceVoices.length > 0 ? matchingDeviceVoices : deviceVoices;
+  const filteredDeviceVoices = baseDeviceList.filter(v =>
+    !voiceSearchQuery.trim() ||
+    v.name.toLowerCase().includes(voiceSearchQuery.toLowerCase()) ||
+    v.language.toLowerCase().includes(voiceSearchQuery.toLowerCase())
+  );
+
+  const filteredPopularVoices = POPULAR_VOICES.filter(v =>
+    v.accent === speechAccent &&
+    (!voiceSearchQuery.trim() || v.name.toLowerCase().includes(voiceSearchQuery.toLowerCase()))
+  );
 
   return (
     <View style={styles.container}>
@@ -216,92 +307,80 @@ export function SettingsView({
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Profile Section */}
+        {/* Profile Card */}
         <Text style={styles.sectionHeader}>TÀI KHOẢN</Text>
         <View style={styles.cardBox}>
-          <Text style={styles.inputLabel}>TÊN HIỂN THỊ</Text>
-          <View style={styles.inputRow}>
-            <TextInput
-              style={styles.textInput}
-              value={name}
-              onChangeText={setName}
-              placeholder="Tên của bạn"
-            />
-            <TouchableOpacity style={styles.actionBtn} onPress={handleSaveName}>
-              <Text style={styles.actionBtnText}>Lưu</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        <Text style={styles.sectionHeader}>NHẮC HỌC</Text>
-        <View style={styles.cardBox}>
-          <View style={styles.infoRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.infoTitle}>Thông báo học từ vựng</Text>
-              <Text style={styles.voiceDesc}>09:15 · 14:15 · 19:15 (giờ thiết bị)</Text>
+          <View style={styles.profileRow}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarLetter}>{(name.trim() || 'Q')[0].toUpperCase()}</Text>
             </View>
-            <TouchableOpacity style={styles.actionBtn} onPress={toggleReminders}>
-              <Text style={styles.actionBtnText}>{remindersEnabled ? 'Tắt' : 'Bật'}</Text>
-            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              {isEditingName ? (
+                <View style={styles.nameEditRow}>
+                  <TextInput
+                    style={styles.nameInput}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Nhập tên..."
+                    autoFocus
+                  />
+                  <TouchableOpacity style={styles.saveNameBtn} onPress={handleSaveName}>
+                    <Text style={styles.saveNameBtnText}>Lưu</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelNameBtn}
+                    onPress={() => {
+                      setName(userName);
+                      setIsEditingName(false);
+                    }}
+                  >
+                    <Feather name="x" size={16} color="#666666" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.nameDisplayRow}>
+                  <View>
+                    <Text style={styles.profileName}>{name || 'Người học'}</Text>
+                    <Text style={styles.profileSub}>Học viên Mochi · Trực tuyến</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.editNameBtn}
+                    onPress={() => setIsEditingName(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Feather name="edit-2" size={14} color="#2563EB" />
+                    <Text style={styles.editNameBtnText}>Đổi tên</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
-        <Text style={styles.sectionHeader}>KHỐI LƯỢNG HỌC HẰNG NGÀY</Text>
+        {/* Pronunciation & Voice (TTS) - REDESIGNED COMPACT DROPDOWN */}
+        <Text style={styles.sectionHeader}>PHÁT ÂM TIẾNG ANH & GIỌNG ĐỌC</Text>
         <View style={styles.cardBox}>
-          <Text style={styles.infoTitle}>Tự động đề xuất từ mới</Text>
-          <Text style={styles.infoValue}>{adaptiveEnabled ? 'Đang bật' : 'Tắt — dùng giới hạn thủ công'}</Text>
-          <View style={styles.accentToggleRow}>
-            <TouchableOpacity style={[styles.accentBtn, adaptiveEnabled && styles.accentBtnActive]} onPress={() => saveAdaptive(true)}><Text style={styles.accentBtnText}>Tự động</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.accentBtn, !adaptiveEnabled && styles.accentBtnActive]} onPress={() => saveAdaptive(false)}><Text style={styles.accentBtnText}>Thủ công</Text></TouchableOpacity>
-          </View>
-          <Text style={styles.inputLabel}>TỪ MỚI / NGÀY (0–50)</Text>
-          <TextInput style={styles.textInput} value={dailyNewLimit} keyboardType="number-pad" onChangeText={setDailyNewLimit} onBlur={() => saveAdaptive()} />
-          <Text style={[styles.inputLabel, { marginTop: 12 }]}>MỤC TIÊU THỜI GIAN (PHÚT)</Text>
-          <TextInput style={styles.textInput} value={targetMinutes} keyboardType="number-pad" onChangeText={setTargetMinutes} onBlur={() => saveAdaptive()} />
-          <Text style={styles.voiceDesc}>Thẻ đến hạn luôn được ưu tiên; thiết lập này chỉ giới hạn thẻ mới.</Text>
-        </View>
-
-        {/* Spaced Repetition Algorithm */}
-        <Text style={styles.sectionHeader}>THUẬT TOÁN LẶP LẠI NGẮT QUÃNG (FSRS)</Text>
-        <View style={styles.cardBox}>
-          <View style={styles.infoRow}>
-            <Text style={styles.infoTitle}>Thuật toán</Text>
-            <Text style={styles.infoValue}>FSRS v6</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.infoRow}>
-            <Text style={styles.infoTitle}>Tỉ lệ ghi nhớ mục tiêu</Text>
-            <Text style={styles.infoValue}>90%</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.infoRow}>
-            <Text style={styles.infoTitle}>Phản hồi ôn tập</Text>
-            <Text style={styles.infoValue}>✕ (Quên) / ✓ (Nhớ)</Text>
-          </View>
-        </View>
-
-        {/* English Pronunciation & System TTS */}
-        <Text style={styles.sectionHeader}>PHÁT ÂM TIẾNG ANH (SYSTEM TTS)</Text>
-        <View style={styles.cardBox}>
-          {/* Accent selector */}
+          {/* Accent Segmented Control */}
           <Text style={styles.inputLabel}>GIỌNG ĐỌC MẪU (ACCENT)</Text>
-          <View style={styles.accentToggleRow}>
+          <View style={styles.segmentedRow}>
             <TouchableOpacity
-              style={[styles.accentBtn, speechAccent === 'en-US' && styles.accentBtnActive]}
+              style={[styles.segmentBtn, speechAccent === 'en-US' && styles.segmentBtnActive]}
               onPress={() => handleChangeAccent('en-US')}
               activeOpacity={0.7}
             >
-              <Text style={[styles.accentBtnText, speechAccent === 'en-US' && styles.accentBtnTextActive]}>
+              <Text style={styles.flagIcon}>🇺🇸</Text>
+              <Text style={[styles.segmentBtnText, speechAccent === 'en-US' && styles.segmentBtnTextActive]}>
                 Tiếng Anh - Mỹ (en-US)
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.accentBtn, speechAccent === 'en-GB' && styles.accentBtnActive]}
+              style={[styles.segmentBtn, speechAccent === 'en-GB' && styles.segmentBtnActive]}
               onPress={() => handleChangeAccent('en-GB')}
               activeOpacity={0.7}
             >
-              <Text style={[styles.accentBtnText, speechAccent === 'en-GB' && styles.accentBtnTextActive]}>
+              <Text style={styles.flagIcon}>🇬🇧</Text>
+              <Text style={[styles.segmentBtnText, speechAccent === 'en-GB' && styles.segmentBtnTextActive]}>
                 Tiếng Anh - Anh (en-GB)
               </Text>
             </TouchableOpacity>
@@ -309,165 +388,45 @@ export function SettingsView({
 
           <View style={styles.divider} />
 
-          {/* Voice Selector */}
-          <Text style={styles.inputLabel}>CHỌN GIỌNG ĐỌC ({speechAccent === 'en-US' ? 'TIẾNG ANH - MỸ' : 'TIẾNG ANH - ANH'})</Text>
-          <View style={styles.voicesList}>
-            {/* Default System voice option */}
-            <TouchableOpacity
-              style={[styles.voiceItem, !selectedVoice && styles.voiceItemActive]}
-              onPress={() => handleSelectVoice(null)}
-              activeOpacity={0.7}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.voiceName, !selectedVoice && styles.voiceNameActive]}>
-                  Giọng hệ thống mặc định (Tự động)
+          {/* Voice Dropdown Picker Row (Replaced endless vertical list) */}
+          <Text style={styles.inputLabel}>GIỌNG ĐỌC PHÁT ÂM</Text>
+          <TouchableOpacity
+            style={styles.voiceDropdownRow}
+            onPress={() => setShowVoiceModal(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.voiceDropdownIconBox}>
+              <Feather name="mic" size={17} color="#2563EB" />
+            </View>
+            <View style={{ flex: 1, marginRight: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.voiceDropdownName} numberOfLines={1}>
+                  {currentVoiceInfo.name}
                 </Text>
-                <Text style={styles.voiceDesc}>Tối ưu và đồng bộ theo cài đặt hệ điều hành</Text>
+                {currentVoiceInfo.badge && (
+                  <View style={styles.enhancedTag}>
+                    <Text style={styles.enhancedTagText}>{currentVoiceInfo.badge}</Text>
+                  </View>
+                )}
               </View>
-              {!selectedVoice && <Feather name="check" size={16} color="#2563EB" />}
-            </TouchableOpacity>
+              <Text style={styles.voiceDropdownDesc} numberOfLines={1}>
+                {currentVoiceInfo.sub}
+              </Text>
+            </View>
 
-            {/* Hiển thị danh sách giọng đọc thực tế của thiết bị */}
-            {(() => {
-              const matchingVoices = deviceVoices.filter(v => {
-                const lang = v.language.toLowerCase();
-                if (speechAccent === 'en-US') {
-                  return lang.includes('us') || lang === 'en';
-                }
-                return lang.includes('gb') || lang.includes('uk');
-              });
-
-              const list = matchingVoices.length > 0 ? matchingVoices : deviceVoices;
-
-              if (list.length > 0) {
-                return list.map(v => {
-                  const isSelected = selectedVoice === v.identifier || selectedVoice === v.name;
-                  const isPreviewing = previewingVoiceId === v.identifier;
-                  return (
-                    <TouchableOpacity
-                      key={v.identifier}
-                      style={[styles.voiceItem, isSelected && styles.voiceItemActive]}
-                      onPress={() => handleSelectVoice(v.identifier)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={[styles.voiceName, isSelected && styles.voiceNameActive]}>
-                            {v.name}
-                          </Text>
-                          <View style={styles.langTag}>
-                            <Text style={styles.langTagText}>{v.language}</Text>
-                          </View>
-                          {v.quality === 'Enhanced' && (
-                            <View style={styles.enhancedTag}>
-                              <Text style={styles.enhancedTagText}>HD</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={styles.voiceDesc}>
-                          {v.quality === 'Enhanced' ? 'Chất lượng âm thanh nâng cao (Enhanced HD)' : 'Giọng đọc chuẩn iOS'}
-                        </Text>
-                      </View>
-
-                      <TouchableOpacity
-                        style={[styles.miniPreviewBtn, isPreviewing && styles.miniPreviewBtnActive]}
-                        onPress={(e) => {
-                          if (e?.stopPropagation) e.stopPropagation();
-                          handlePreviewDeviceVoice(v);
-                        }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Feather name={isPreviewing ? 'volume-2' : 'volume-1'} size={15} color={isPreviewing ? '#2563EB' : '#6B7280'} />
-                      </TouchableOpacity>
-
-                      {isSelected && <Feather name="check" size={16} color="#2563EB" style={{ marginLeft: 8 }} />}
-                    </TouchableOpacity>
-                  );
-                });
-              }
-
-              // Dự phòng Popular Voices nếu máy chưa kịp nạp
-              return POPULAR_VOICES.filter(v => v.accent === speechAccent).map(v => {
-                const isSelected = selectedVoice === v.id;
-                const isPreviewing = previewingVoiceId === v.id;
-                return (
-                  <TouchableOpacity
-                    key={v.id}
-                    style={[styles.voiceItem, isSelected && styles.voiceItemActive]}
-                    onPress={() => handleSelectVoice(v.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={[styles.voiceName, isSelected && styles.voiceNameActive]}>
-                          {v.name}
-                        </Text>
-                        <View style={styles.genderTag}>
-                          <Text style={styles.genderTagText}>{v.gender === 'female' ? 'Nữ' : 'Nam'}</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.voiceDesc}>{v.desc}</Text>
-                    </View>
-
-                    <TouchableOpacity
-                      style={[styles.miniPreviewBtn, isPreviewing && styles.miniPreviewBtnActive]}
-                      onPress={(e) => {
-                        if (e?.stopPropagation) e.stopPropagation();
-                        handlePreviewVoice(v);
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Feather name={isPreviewing ? 'volume-2' : 'volume-1'} size={15} color={isPreviewing ? '#2563EB' : '#6B7280'} />
-                    </TouchableOpacity>
-
-                    {isSelected && <Feather name="check" size={16} color="#2563EB" style={{ marginLeft: 8 }} />}
-                  </TouchableOpacity>
-                );
-              });
-            })()}
-          </View>
-
-          {/* Hướng dẫn tải thêm nhiều giọng đọc tự nhiên trên iPhone */}
-          <View style={styles.tipCard}>
-            <Ionicons name="information-circle-outline" size={18} color="#2563EB" style={{ marginRight: 8, marginTop: 1 }} />
-            <Text style={styles.tipCardText}>
-              <Text style={{ fontWeight: '700' }}>Mẹo trên iPhone:</Text> Vào <Text style={{ fontWeight: '600' }}>Cài đặt</Text> &gt; <Text style={{ fontWeight: '600' }}>Trợ năng</Text> &gt; <Text style={{ fontWeight: '600' }}>Đọc nội dung</Text> &gt; <Text style={{ fontWeight: '600' }}>Giọng nói</Text> &gt; <Text style={{ fontWeight: '600' }}>Tiếng Anh</Text> để tải thêm nhiều giọng Siri, Ava, Zoe, Oliver... tự nhiên và truyền cảm.
-            </Text>
-          </View>
+            <View style={styles.voiceDropdownAction}>
+              <View style={styles.changePill}>
+                <Text style={styles.changePillText}>Đổi</Text>
+                <Feather name="chevron-right" size={13} color="#2563EB" />
+              </View>
+            </View>
+          </TouchableOpacity>
 
           <View style={styles.divider} />
 
-          {/* Pitch selector */}
-          <Text style={styles.inputLabel}>CAO ĐỘ GIỌNG ĐỌC (PITCH: {speechPitch}x)</Text>
-          <View style={styles.ratePillsRow}>
-            {[
-              { label: '0.85x Trầm ấm', val: 0.85 },
-              { label: '1.0x Tự nhiên', val: 1.0 },
-              { label: '1.15x Trong trẻo', val: 1.15 }
-            ].map(item => (
-              <TouchableOpacity
-                key={item.val}
-                style={[styles.ratePill, Math.abs(speechPitch - item.val) < 0.05 && styles.ratePillActive]}
-                onPress={() => handleChangePitch(item.val)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.ratePillText,
-                    Math.abs(speechPitch - item.val) < 0.05 && styles.ratePillTextActive
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.divider} />
-
-          {/* Speed selector */}
-          <Text style={styles.inputLabel}>TỐC ĐỘ PHÁT ÂM ({speechRate}x)</Text>
-          <View style={styles.ratePillsRow}>
+          {/* Pitch & Speed Controls */}
+          <Text style={styles.inputLabel}>TỐC ĐỘ ĐỌC ({speechRate}x)</Text>
+          <View style={styles.chipsRow}>
             {[
               { label: '0.75x Chậm', val: 0.75 },
               { label: '0.9x Vừa', val: 0.9 },
@@ -476,14 +435,14 @@ export function SettingsView({
             ].map(item => (
               <TouchableOpacity
                 key={item.val}
-                style={[styles.ratePill, Math.abs(speechRate - item.val) < 0.05 && styles.ratePillActive]}
+                style={[styles.chipPill, Math.abs(speechRate - item.val) < 0.05 && styles.chipPillActive]}
                 onPress={() => handleChangeRate(item.val)}
                 activeOpacity={0.7}
               >
                 <Text
                   style={[
-                    styles.ratePillText,
-                    Math.abs(speechRate - item.val) < 0.05 && styles.ratePillTextActive
+                    styles.chipPillText,
+                    Math.abs(speechRate - item.val) < 0.05 && styles.chipPillTextActive
                   ]}
                 >
                   {item.label}
@@ -494,7 +453,32 @@ export function SettingsView({
 
           <View style={styles.divider} />
 
-          {/* Test Voice Button */}
+          <Text style={styles.inputLabel}>CAO ĐỘ GIỌNG (PITCH: {speechPitch}x)</Text>
+          <View style={styles.chipsRow}>
+            {[
+              { label: '0.85x Trầm ấm', val: 0.85 },
+              { label: '1.0x Tự nhiên', val: 1.0 },
+              { label: '1.15x Trong trẻo', val: 1.15 }
+            ].map(item => (
+              <TouchableOpacity
+                key={item.val}
+                style={[styles.chipPill, Math.abs(speechPitch - item.val) < 0.05 && styles.chipPillActive]}
+                onPress={() => handleChangePitch(item.val)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.chipPillText,
+                    Math.abs(speechPitch - item.val) < 0.05 && styles.chipPillTextActive
+                  ]}
+                >
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Test Speech Button */}
           <TouchableOpacity
             style={[styles.testSpeechBtn, isTestingSpeech && styles.testSpeechBtnActive]}
             onPress={handleTestSpeech}
@@ -502,50 +486,203 @@ export function SettingsView({
           >
             <Feather
               name={isTestingSpeech ? 'volume-2' : 'volume-1'}
-              size={18}
+              size={17}
               color={isTestingSpeech ? '#FFFFFF' : '#2563EB'}
               style={{ marginRight: 8 }}
             />
             <Text style={[styles.testSpeechBtnText, isTestingSpeech && styles.testSpeechBtnTextActive]}>
-              {isTestingSpeech ? 'Đang phát âm thử...' : 'Nghe thử giọng đọc'}
+              {isTestingSpeech ? 'Đang phát âm thử...' : 'Nghe thử câu mẫu phát âm'}
             </Text>
           </TouchableOpacity>
 
-          {/* Voice status info */}
-          <View style={styles.ttsStatusRow}>
-            <Ionicons name="hardware-chip-outline" size={13} color="#888888" style={{ marginRight: 6 }} />
-            <Text style={styles.ttsStatusText}>
-              System TTS: {voiceCount > 0 ? `${voiceCount} giọng đọc tiếng Anh khả dụng trên máy` : 'Giọng đọc tích hợp sẵn trên thiết bị (iOS/Android)'}
+          {/* Tip Card */}
+          <View style={styles.tipCard}>
+            <Ionicons name="information-circle-outline" size={18} color="#2563EB" style={{ marginRight: 8, marginTop: 1 }} />
+            <Text style={styles.tipCardText}>
+              <Text style={{ fontWeight: '700' }}>Mẹo giọng đọc:</Text> Bạn có thể tải thêm giọng Siri, Ava, Zoe, Oliver tự nhiên trong <Text style={{ fontWeight: '600' }}>Cài đặt thiết bị &gt; Trợ năng &gt; Đọc nội dung &gt; Giọng nói</Text>.
             </Text>
           </View>
         </View>
 
-        {/* Data & Import */}
+        {/* Goals & Reminders */}
+        <Text style={styles.sectionHeader}>MỤC TIÊU & NHẮC NHỞ HỌC TẬP</Text>
+        <View style={styles.cardBox}>
+          {/* Reminders Switch */}
+          <View style={styles.switchRow}>
+            <View style={styles.switchInfo}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Feather name="bell" size={15} color="#2563EB" />
+                <Text style={styles.switchTitle}>Nhắc học từ vựng</Text>
+              </View>
+              <Text style={styles.switchDesc}>Thông báo lúc 09:15 · 14:15 · 19:15</Text>
+            </View>
+            <Switch
+              value={remindersEnabled}
+              onValueChange={toggleReminders}
+              trackColor={{ false: '#E2E8F0', true: '#2563EB' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Adaptive Learning Switch */}
+          <View style={styles.switchRow}>
+            <View style={styles.switchInfo}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <MaterialCommunityIcons name="brain" size={16} color="#2563EB" />
+                <Text style={styles.switchTitle}>Tự động điều chỉnh theo năng lực</Text>
+              </View>
+              <Text style={styles.switchDesc}>
+                {adaptiveEnabled ? 'Tự động đề xuất số từ mới theo tốc độ học' : 'Dùng giới hạn từ mới và thời gian thủ công'}
+              </Text>
+            </View>
+            <Switch
+              value={adaptiveEnabled}
+              onValueChange={(val) => saveAdaptive(val)}
+              trackColor={{ false: '#E2E8F0', true: '#2563EB' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          {/* Manual limits */}
+          <View style={styles.limitsBox}>
+            <View style={styles.limitItem}>
+              <Text style={styles.limitLabel}>TỪ MỚI / NGÀY</Text>
+              <View style={styles.presetChipsRow}>
+                {[5, 10, 15, 20].map(n => (
+                  <TouchableOpacity
+                    key={n}
+                    style={[styles.presetChip, dailyNewLimit === String(n) && styles.presetChipActive]}
+                    onPress={() => {
+                      setDailyNewLimit(String(n));
+                      void saveAdaptive(adaptiveEnabled, n, Number(targetMinutes) || 15);
+                    }}
+                  >
+                    <Text style={[styles.presetChipText, dailyNewLimit === String(n) && styles.presetChipTextActive]}>
+                      {n}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={[styles.limitItem, { marginTop: 12 }]}>
+              <Text style={styles.limitLabel}>MỤC TIÊU THỜI GIAN (PHÚT / NGÀY)</Text>
+              <View style={styles.presetChipsRow}>
+                {[10, 15, 20, 30].map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.presetChip, targetMinutes === String(m) && styles.presetChipActive]}
+                    onPress={() => {
+                      setTargetMinutes(String(m));
+                      void saveAdaptive(adaptiveEnabled, Number(dailyNewLimit) || 10, m);
+                    }}
+                  >
+                    <Text style={[styles.presetChipText, targetMinutes === String(m) && styles.presetChipTextActive]}>
+                      {m}p
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* FSRS Algorithm Info */}
+        <Text style={styles.sectionHeader}>THUẬT TOÁN LẶP LẠI NGẮT QUÃNG</Text>
+        <View style={styles.cardBox}>
+          <View style={styles.infoRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Feather name="cpu" size={15} color="#2563EB" />
+              <Text style={styles.infoTitle}>Mô hình thuật toán</Text>
+            </View>
+            <Text style={styles.infoValue}>FSRS v6</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.infoRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Feather name="target" size={15} color="#16A34A" />
+              <Text style={styles.infoTitle}>Tỉ lệ ghi nhớ mục tiêu</Text>
+            </View>
+            <Text style={styles.infoValue}>90%</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.infoRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Feather name="repeat" size={15} color="#D97706" />
+              <Text style={styles.infoTitle}>Cơ chế phản hồi</Text>
+            </View>
+            <Text style={styles.infoValue}>Quên / Nhớ + Đếm số lần lật</Text>
+          </View>
+        </View>
+
+        {/* Data & Backup */}
         <Text style={styles.sectionHeader}>DỮ LIỆU & SAO LƯU</Text>
         <View style={styles.cardBox}>
-          <TouchableOpacity style={styles.menuRow} onPress={handleMochiImport}>
-            <Feather name="upload" size={17} color="#444444" style={{ marginRight: 10 }} />
-            <View style={{ flex: 1 }}><Text style={styles.menuRowText}>Nhập bộ thẻ Mochi (.mochi)</Text><Text style={styles.voiceDesc}>Giữ nội dung, tags và lịch đến hạn</Text></View>
+          <TouchableOpacity style={styles.menuRow} onPress={handleMochiImport} activeOpacity={0.7}>
+            <View style={[styles.menuIconBox, { backgroundColor: '#EFF6FF' }]}>
+              <Feather name="upload" size={16} color="#2563EB" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.menuRowText}>Nhập bộ thẻ Mochi (.mochi)</Text>
+              <Text style={styles.menuRowDesc}>Bảo toàn toàn bộ thẻ, tag và lịch ôn tập</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="#94A3B8" />
           </TouchableOpacity>
+
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.menuRow} onPress={handleMochiExport}>
-            <Feather name="share-2" size={17} color="#444444" style={{ marginRight: 10 }} />
-            <View style={{ flex: 1 }}><Text style={styles.menuRowText}>Xuất dữ liệu dạng Mochi (.mochi)</Text><Text style={styles.voiceDesc}>Tạo file ZIP data.json tương thích Mochi</Text></View>
+
+          <TouchableOpacity style={styles.menuRow} onPress={handleMochiExport} activeOpacity={0.7}>
+            <View style={[styles.menuIconBox, { backgroundColor: '#F0FDF4' }]}>
+              <Feather name="share-2" size={16} color="#16A34A" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.menuRowText}>Xuất bản sao lưu (.mochi)</Text>
+              <Text style={styles.menuRowDesc}>Tạo file ZIP data.json tương thích chuẩn Mochi</Text>
+            </View>
+            <Feather name="chevron-right" size={16} color="#94A3B8" />
           </TouchableOpacity>
+
           <View style={styles.divider} />
+
           <TouchableOpacity
             style={styles.menuRow}
             onPress={() => setShowImportBox(!showImportBox)}
+            activeOpacity={0.7}
           >
-            <Feather name="download" size={17} color="#444444" style={{ marginRight: 10 }} />
-            <Text style={styles.menuRowText}>Nhập thẻ từ Markdown</Text>
-            <Feather name={showImportBox ? 'chevron-up' : 'chevron-down'} size={16} color="#888888" style={{ marginLeft: 'auto' }} />
+            <View style={[styles.menuIconBox, { backgroundColor: '#FAF5FF' }]}>
+              <Feather name="download" size={16} color="#9333EA" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.menuRowText}>Nhập thẻ nhanh từ Markdown</Text>
+              <Text style={styles.menuRowDesc}>Dán văn bản phân cách bằng dấu gạch ngang ---</Text>
+            </View>
+            <Feather name={showImportBox ? 'chevron-up' : 'chevron-down'} size={16} color="#94A3B8" />
           </TouchableOpacity>
 
           {showImportBox && (
             <View style={styles.importArea}>
+              {decks.length > 1 && (
+                <View style={styles.deckSelectContainer}>
+                  <Text style={styles.deckSelectLabel}>Chọn bộ thẻ cần nhập vào:</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.deckChipsScroll}>
+                    {decks.map(d => (
+                      <TouchableOpacity
+                        key={d.id}
+                        style={[styles.deckChip, selectedDeckForImport === d.id && styles.deckChipActive]}
+                        onPress={() => setSelectedDeckForImport(d.id)}
+                      >
+                        <Text style={[styles.deckChipText, selectedDeckForImport === d.id && styles.deckChipTextActive]}>
+                          {d.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
               <Text style={styles.importHint}>
-                Định dạng: Phân cách mặt trước và mặt ẩn bằng `---`. Phân cách giữa các thẻ bằng `===`.
+                Định dạng: Mặt trước và mặt ẩn phân cách bằng `---`. Giữa các thẻ bằng `===`.
               </Text>
               <TextInput
                 style={styles.importInput}
@@ -562,21 +699,197 @@ export function SettingsView({
         </View>
 
         {/* About */}
-        <Text style={styles.sectionHeader}>GIỚI THIỆU</Text>
+        <Text style={styles.sectionHeader}>THÔNG TIN ỨNG DỤNG</Text>
         <View style={styles.cardBox}>
           <View style={styles.infoRow}>
             <Text style={styles.infoTitle}>Ứng dụng</Text>
-            <Text style={styles.infoValue}>Mochi Flashcards & Ghi chú</Text>
+            <Text style={styles.infoValue}>Mochi Spaced Repetition</Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.infoRow}>
             <Text style={styles.infoTitle}>Phiên bản</Text>
             <Text style={styles.infoValue}>2.0.0 (Offline-First SQLite)</Text>
           </View>
+          <View style={styles.divider} />
+          <View style={styles.infoRow}>
+            <Text style={styles.infoTitle}>Giọng đọc khả dụng trên máy</Text>
+            <Text style={styles.infoValue}>{voiceCount} giọng TTS</Text>
+          </View>
         </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* MODAL DROPDOWN CHỌN GIỌNG ĐỌC */}
+      <Modal
+        visible={showVoiceModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowVoiceModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowVoiceModal(false)}>
+          <View style={styles.modalBackdrop}>
+            <TouchableWithoutFeedback>
+              <View style={styles.voiceModalSheet}>
+                {/* Modal Header */}
+                <View style={styles.voiceModalHeader}>
+                  <View>
+                    <Text style={styles.voiceModalTitle}>Chọn giọng đọc phát âm</Text>
+                    <Text style={styles.voiceModalSubtitle}>
+                      {speechAccent === 'en-US' ? 'Tiếng Anh - Mỹ (en-US)' : 'Tiếng Anh - Anh (en-GB)'} · {baseDeviceList.length} giọng
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.modalCloseBtn}
+                    onPress={() => setShowVoiceModal(false)}
+                  >
+                    <Feather name="x" size={20} color="#666666" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Search Bar */}
+                <View style={styles.searchBarBox}>
+                  <Feather name="search" size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.searchBarInput}
+                    placeholder="Tìm theo tên giọng đọc (Samantha, Ava, Daniel...)"
+                    placeholderTextColor="#94A3B8"
+                    value={voiceSearchQuery}
+                    onChangeText={setVoiceSearchQuery}
+                  />
+                  {voiceSearchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setVoiceSearchQuery('')}>
+                      <Feather name="x-circle" size={16} color="#94A3B8" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Voice List Scroll */}
+                <ScrollView style={styles.voiceModalList} showsVerticalScrollIndicator={false}>
+                  {/* Default system voice item */}
+                  <TouchableOpacity
+                    style={[styles.voiceModalItem, !selectedVoice && styles.voiceModalItemActive]}
+                    onPress={() => handleSelectVoice(null)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.voiceModalItemIcon}>
+                      <Feather name="smartphone" size={18} color={!selectedVoice ? '#2563EB' : '#64748B'} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.voiceModalItemName, !selectedVoice && styles.voiceModalItemNameActive]}>
+                        Giọng hệ thống mặc định
+                      </Text>
+                      <Text style={styles.voiceModalItemDesc}>Tự động đồng bộ theo cài đặt hệ điều hành</Text>
+                    </View>
+                    {!selectedVoice && (
+                      <Ionicons name="checkmark-circle" size={20} color="#2563EB" />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* Device voices list */}
+                  {filteredDeviceVoices.map(v => {
+                    const isSelected = selectedVoice === v.identifier || selectedVoice === v.name;
+                    const isPreviewing = previewingVoiceId === v.identifier;
+                    return (
+                      <TouchableOpacity
+                        key={v.identifier}
+                        style={[styles.voiceModalItem, isSelected && styles.voiceModalItemActive]}
+                        onPress={() => handleSelectVoice(v.identifier)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.voiceModalItemIcon}>
+                          <Feather name="mic" size={17} color={isSelected ? '#2563EB' : '#64748B'} />
+                        </View>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[styles.voiceModalItemName, isSelected && styles.voiceModalItemNameActive]}>
+                              {v.name}
+                            </Text>
+                            <View style={styles.langTag}>
+                              <Text style={styles.langTagText}>{v.language}</Text>
+                            </View>
+                            {v.quality === 'Enhanced' && (
+                              <View style={styles.enhancedTag}>
+                                <Text style={styles.enhancedTagText}>HD</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.voiceModalItemDesc}>
+                            {v.quality === 'Enhanced' ? 'Chất lượng cao (Enhanced HD)' : 'Giọng chuẩn hệ điều hành'}
+                          </Text>
+                        </View>
+
+                        {/* Preview speaker button */}
+                        <TouchableOpacity
+                          style={[styles.previewVoiceBtn, isPreviewing && styles.previewVoiceBtnActive]}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handlePreviewDeviceVoice(v);
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Feather
+                            name={isPreviewing ? 'volume-2' : 'volume-1'}
+                            size={16}
+                            color={isPreviewing ? '#2563EB' : '#64748B'}
+                          />
+                        </TouchableOpacity>
+
+                        {isSelected && (
+                          <Ionicons name="checkmark-circle" size={20} color="#2563EB" style={{ marginLeft: 8 }} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {/* Fallback to Popular Voices if no device voices matched search */}
+                  {filteredDeviceVoices.length === 0 && filteredPopularVoices.map(v => {
+                    const isSelected = selectedVoice === v.id;
+                    const isPreviewing = previewingVoiceId === v.id;
+                    return (
+                      <TouchableOpacity
+                        key={v.id}
+                        style={[styles.voiceModalItem, isSelected && styles.voiceModalItemActive]}
+                        onPress={() => handleSelectVoice(v.id)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.voiceModalItemIcon}>
+                          <Feather name="mic" size={17} color={isSelected ? '#2563EB' : '#64748B'} />
+                        </View>
+                        <View style={{ flex: 1, marginRight: 8 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[styles.voiceModalItemName, isSelected && styles.voiceModalItemNameActive]}>
+                              {v.name}
+                            </Text>
+                            <View style={styles.langTag}>
+                              <Text style={styles.langTagText}>{v.gender === 'female' ? 'Nữ' : 'Nam'}</Text>
+                            </View>
+                          </View>
+                          <Text style={styles.voiceModalItemDesc}>{v.desc}</Text>
+                        </View>
+
+                        <TouchableOpacity
+                          style={[styles.previewVoiceBtn, isPreviewing && styles.previewVoiceBtnActive]}
+                          onPress={(e) => {
+                            e.stopPropagation();
+                            handlePreviewVoice(v);
+                          }}
+                        >
+                          <Feather name={isPreviewing ? 'volume-2' : 'volume-1'} size={16} color={isPreviewing ? '#2563EB' : '#64748B'} />
+                        </TouchableOpacity>
+
+                        {isSelected && (
+                          <Ionicons name="checkmark-circle" size={20} color="#2563EB" style={{ marginLeft: 8 }} />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 }
@@ -584,173 +897,232 @@ export function SettingsView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA'
+    backgroundColor: '#F8FAFC'
   },
   scrollContent: {
-    padding: 16
+    padding: 16,
+    paddingBottom: 40
   },
   sectionHeader: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
-    color: '#8E8E93',
+    color: '#64748B',
     letterSpacing: 0.8,
-    marginTop: 14,
+    marginTop: 16,
     marginBottom: 8,
     marginLeft: 4
   },
   cardBox: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
-    marginBottom: 8
+    marginBottom: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#F1F5F9'
   },
-  inputLabel: {
-    fontSize: 11,
-    color: '#999999',
-    fontWeight: '700',
-    marginBottom: 6
-  },
-  inputRow: {
+  // Profile styles
+  profileRow: {
     flexDirection: 'row',
     alignItems: 'center'
   },
-  textInput: {
-    flex: 1,
-    height: 40,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 15,
-    color: '#222222',
-    marginRight: 10
+  avatarCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#2563EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12
   },
-  actionBtn: {
-    backgroundColor: '#262626',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8
-  },
-  actionBtnText: {
+  avatarLetter: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600'
+    fontSize: 20,
+    fontWeight: '700'
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8
+  profileName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A'
   },
-  infoTitle: {
-    fontSize: 14,
-    color: '#444444'
+  profileSub: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 2
   },
-  infoValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#222222'
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginVertical: 4
-  },
-  menuRow: {
+  nameDisplayRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 6
+    justifyContent: 'space-between'
   },
-  menuRowText: {
+  editNameBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF'
+  },
+  editNameBtnText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#2563EB'
+  },
+  nameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8
+  },
+  nameInput: {
+    flex: 1,
+    height: 38,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingHorizontal: 10,
     fontSize: 14,
-    color: '#333333',
-    fontWeight: '500'
+    color: '#0F172A'
   },
-  importArea: {
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-    paddingTop: 10
-  },
-  importHint: {
-    fontSize: 12,
-    color: '#888888',
-    marginBottom: 8
-  },
-  importInput: {
-    height: 100,
-    backgroundColor: '#F5F5F5',
+  saveNameBtn: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 14,
+    height: 38,
     borderRadius: 8,
-    padding: 10,
-    fontSize: 13,
-    color: '#222222',
-    textAlignVertical: 'top',
-    marginBottom: 10
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  importSubmitBtn: {
-    backgroundColor: '#333333',
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center'
-  },
-  importSubmitText: {
+  saveNameBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600'
+    fontWeight: '600',
+    fontSize: 13
   },
-  accentToggleRow: {
+  cancelNameBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  // Segmented control
+  inputLabel: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 6
+  },
+  segmentedRow: {
     flexDirection: 'row',
     gap: 8,
     marginVertical: 4
   },
-  accentBtn: {
+  segmentBtn: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 9,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
-    borderColor: 'transparent'
+    borderColor: '#E2E8F0'
   },
-  accentBtnActive: {
+  segmentBtnActive: {
     backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6'
+    borderColor: '#2563EB'
   },
-  accentBtnText: {
-    fontSize: 12.5,
+  flagIcon: {
+    fontSize: 15,
+    marginRight: 6
+  },
+  segmentBtnText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#4B5563'
+    color: '#475569'
   },
-  accentBtnTextActive: {
+  segmentBtnTextActive: {
     color: '#1D4ED8',
     fontWeight: '700'
   },
-  ratePillsRow: {
+  // Voice Dropdown Button
+  voiceDropdownRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginVertical: 6,
-    flexWrap: 'wrap'
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    marginVertical: 4
   },
-  ratePill: {
-    paddingVertical: 7,
+  voiceDropdownIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10
+  },
+  voiceDropdownName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B'
+  },
+  voiceDropdownDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2
+  },
+  voiceDropdownAction: {
+    marginLeft: 'auto'
+  },
+  changePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 5,
     paddingHorizontal: 10,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB'
+    gap: 3
   },
-  ratePillActive: {
+  changePillText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#2563EB'
+  },
+  // Chips row (pitch & speed)
+  chipsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginVertical: 4,
+    flexWrap: 'wrap'
+  },
+  chipPill: {
+    paddingVertical: 7,
+    paddingHorizontal: 11,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  chipPillActive: {
     backgroundColor: '#2563EB',
     borderColor: '#2563EB'
   },
-  ratePillText: {
+  chipPillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#4B5563'
+    color: '#475569'
   },
-  ratePillTextActive: {
+  chipPillTextActive: {
     color: '#FFFFFF'
   },
   testSpeechBtn: {
@@ -760,87 +1132,312 @@ const styles = StyleSheet.create({
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
     borderColor: '#BFDBFE',
-    borderRadius: 8,
-    paddingVertical: 10,
-    marginTop: 6
+    borderRadius: 10,
+    paddingVertical: 11,
+    marginTop: 10
   },
   testSpeechBtnActive: {
     backgroundColor: '#2563EB',
     borderColor: '#2563EB'
   },
   testSpeechBtnText: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '600',
     color: '#1D4ED8'
   },
   testSpeechBtnTextActive: {
     color: '#FFFFFF'
   },
-  ttsStatusRow: {
+  tipCard: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F9FF',
+    borderRadius: 9,
+    padding: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#BAE6FD'
+  },
+  tipCardText: {
+    flex: 1,
+    fontSize: 11.5,
+    color: '#0369A1',
+    lineHeight: 16.5
+  },
+  // Switch row
+  switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'space-between',
+    paddingVertical: 6
+  },
+  switchInfo: {
+    flex: 1,
+    marginRight: 12
+  },
+  switchTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B'
+  },
+  switchDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2
+  },
+  limitsBox: {
+    marginTop: 8,
     paddingTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#F3F4F6'
+    borderTopColor: '#F1F5F9'
   },
-  ttsStatusText: {
-    fontSize: 11,
-    color: '#6B7280'
+  limitItem: {},
+  limitLabel: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 6
   },
-  voicesList: {
-    marginVertical: 4,
-    gap: 6
+  presetChipsRow: {
+    flexDirection: 'row',
+    gap: 8
   },
-  voiceItem: {
+  presetChip: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  presetChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB'
+  },
+  presetChipText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#475569'
+  },
+  presetChipTextActive: {
+    color: '#2563EB',
+    fontWeight: '700'
+  },
+  // Common info rows & divider
+  divider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 10
+  },
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB'
+    justifyContent: 'space-between',
+    paddingVertical: 6
   },
-  voiceItemActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#3B82F6'
+  infoTitle: {
+    fontSize: 13.5,
+    color: '#334155'
   },
-  voiceName: {
+  infoValue: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#374151'
+    color: '#0F172A'
   },
-  voiceNameActive: {
+  // Data & Menu rows
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6
+  },
+  menuIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10
+  },
+  menuRowText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#1E293B'
+  },
+  menuRowDesc: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2
+  },
+  importArea: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 12
+  },
+  deckSelectContainer: {
+    marginBottom: 10
+  },
+  deckSelectLabel: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 6,
+    fontWeight: '600'
+  },
+  deckChipsScroll: {
+    gap: 6
+  },
+  deckChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  deckChipActive: {
+    backgroundColor: '#2563EB',
+    borderColor: '#2563EB'
+  },
+  deckChipText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600'
+  },
+  deckChipTextActive: {
+    color: '#FFFFFF'
+  },
+  importHint: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginBottom: 8
+  },
+  importInput: {
+    height: 90,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 13,
+    color: '#0F172A',
+    textAlignVertical: 'top',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0'
+  },
+  importSubmitBtn: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  importSubmitText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600'
+  },
+  // Modal styles for Voice Selector
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end'
+  },
+  voiceModalSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '82%',
+    paddingTop: 18,
+    paddingBottom: 32,
+    paddingHorizontal: 18
+  },
+  voiceModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  voiceModalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0F172A'
+  },
+  voiceModalSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 2
+  },
+  modalCloseBtn: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9'
+  },
+  searchBarBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 40,
+    marginBottom: 12
+  },
+  searchBarInput: {
+    flex: 1,
+    fontSize: 13.5,
+    color: '#0F172A'
+  },
+  voiceModalList: {
+    maxHeight: 460
+  },
+  voiceModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 6,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0'
+  },
+  voiceModalItemActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#2563EB'
+  },
+  voiceModalItemIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10
+  },
+  voiceModalItemName: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#1E293B'
+  },
+  voiceModalItemNameActive: {
     color: '#1D4ED8',
     fontWeight: '700'
   },
-  voiceDesc: {
+  voiceModalItemDesc: {
     fontSize: 11.5,
-    color: '#6B7280',
+    color: '#64748B',
     marginTop: 2
   },
-  genderTag: {
-    backgroundColor: '#E5E7EB',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4
-  },
-  genderTagText: {
-    fontSize: 9.5,
-    fontWeight: '600',
-    color: '#4B5563'
-  },
-  miniPreviewBtn: {
-    padding: 6,
+  previewVoiceBtn: {
+    padding: 7,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
     marginLeft: 6
   },
-  miniPreviewBtnActive: {
+  previewVoiceBtnActive: {
     backgroundColor: '#DBEAFE',
-    borderColor: '#3B82F6'
+    borderColor: '#2563EB'
   },
   langTag: {
     backgroundColor: '#EEF2F6',
@@ -855,7 +1452,7 @@ const styles = StyleSheet.create({
   },
   enhancedTag: {
     backgroundColor: '#DCFCE7',
-    paddingHorizontal: 4,
+    paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4
   },
@@ -863,21 +1460,5 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#166534'
-  },
-  tipCard: {
-    flexDirection: 'row',
-    backgroundColor: '#EFF6FF',
-    borderRadius: 8,
-    padding: 10,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#BFDBFE'
-  },
-  tipCardText: {
-    flex: 1,
-    fontSize: 11.5,
-    color: '#1E40AF',
-    lineHeight: 16.5
   }
 });
-
