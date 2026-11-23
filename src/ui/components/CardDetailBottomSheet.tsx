@@ -138,7 +138,7 @@ export function CardDetailBottomSheet({
                         onPress={() => setShowVoicePractice(true)}
                         activeOpacity={0.7}
                       >
-                        <Feather name="mic" size={16} color="#2563EB" />
+                        <Feather name="mic" size={16} color="#262626" />
                       </TouchableOpacity>
                     )}
                     {idx === 0 && (

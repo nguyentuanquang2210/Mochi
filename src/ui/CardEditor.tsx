@@ -319,7 +319,7 @@ export function CardEditor({
             <View style={styles.sideCardBox}>
               <View style={styles.sideCardHeader}>
                 <View style={styles.sideBadge}>
-                  <Text style={styles.sideBadgeText}>MẶT 1 · MẶT TRƯỚC (CÂU HỎI / TỪ VỰNG)</Text>
+                  <Text numberOfLines={1} style={styles.sideBadgeText}>MẶT 1 · MẶT TRƯỚC</Text>
                 </View>
 
                 {/* Auto Suggestion Button */}
@@ -378,8 +378,8 @@ export function CardEditor({
                 <View key={sideIndex} style={styles.sideCardBox}>
                   <View style={styles.sideCardHeader}>
                     <View style={styles.sideBadge}>
-                      <Text style={styles.sideBadgeText}>
-                        {isFirstHidden ? 'MẶT ẨN 1 · NGHĨA & GIẢI THÍCH' : `MẶT ẨN ${sideIndex} · CÂU VÍ DỤ / NGỮ CẢNH`}
+                      <Text numberOfLines={1} style={styles.sideBadgeText}>
+                        {isFirstHidden ? 'MẶT 2 · NGHĨA & GIẢI THÍCH' : `MẶT ${sideIndex + 1} · VÍ DỤ / NGỮ CẢNH`}
                       </Text>
                     </View>
 
@@ -390,8 +390,8 @@ export function CardEditor({
                         onPress={() => removeSide(sideIndex)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Feather name="trash-2" size={14} color="#666666" />
-                        <Text style={styles.deleteSideText}>Xóa mặt này</Text>
+                        <Feather name="trash-2" size={13} color="#666666" />
+                        <Text style={styles.deleteSideText}>Xóa mặt</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -486,7 +486,7 @@ export function CardEditor({
             />
             <TouchableOpacity style={styles.insertSensesBtn} onPress={insertSelectedSenses} activeOpacity={0.8}>
               <Feather name="plus-circle" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <Text style={styles.insertSensesBtnText}>Chèn các nghĩa & ví dụ đã chọn vào Mặt ẩn 1</Text>
+              <Text style={styles.insertSensesBtnText}>Chèn nghĩa & ví dụ đã chọn vào Mặt 2</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -665,17 +665,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F5F5F5',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
-    maxWidth: 180,
+    maxWidth: 160,
+    flexShrink: 1,
+    marginHorizontal: 8,
     borderWidth: 1,
     borderColor: '#E5E5E5'
   },
   deckSelectorText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#222222'
+    color: '#222222',
+    flexShrink: 1
   },
   saveBtn: {
     backgroundColor: '#262626',
@@ -699,12 +702,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14
+    marginBottom: 14,
+    flexWrap: 'wrap',
+    gap: 8
   },
   screenHeading: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#222222'
+    color: '#222222',
+    flexShrink: 1
   },
   modeToggleBtn: {
     flexDirection: 'row',
@@ -714,7 +720,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#F5F5F5',
     borderWidth: 1,
-    borderColor: '#E5E5E5'
+    borderColor: '#E5E5E5',
+    flexShrink: 0
   },
   modeToggleText: {
     fontSize: 12,
@@ -733,25 +740,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
-    elevation: 1
+    elevation: 1,
+    overflow: 'hidden'
   },
   sideCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10
+    marginBottom: 10,
+    flexWrap: 'wrap',
+    gap: 8
   },
   sideBadge: {
     backgroundColor: '#F5F5F5',
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6
+    borderRadius: 6,
+    flexShrink: 1
   },
   sideBadgeText: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '700',
     color: '#555555',
-    letterSpacing: 0.5
+    letterSpacing: 0.4
   },
   quickDictBtn: {
     flexDirection: 'row',
@@ -759,7 +770,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#262626',
     paddingHorizontal: 9,
     paddingVertical: 5,
-    borderRadius: 6
+    borderRadius: 6,
+    flexShrink: 0
   },
   quickDictBtnText: {
     fontSize: 11.5,
@@ -781,13 +793,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
-    paddingHorizontal: 4
+    paddingHorizontal: 4,
+    flexWrap: 'wrap',
+    gap: 6
   },
   ipaTextContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 8,
-    flexWrap: 'wrap'
+    flexWrap: 'wrap',
+    flexShrink: 1
   },
   ipaText: {
     fontSize: 13,
@@ -813,10 +828,15 @@ const styles = StyleSheet.create({
   deleteSideBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4
+    gap: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#F5F5F5',
+    flexShrink: 0
   },
   deleteSideText: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#666666',
     fontWeight: '600'
   },
@@ -825,6 +845,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 14,
     backgroundColor: '#F5F5F5',
     borderRadius: 10,
     borderWidth: 1.5,
@@ -835,7 +856,9 @@ const styles = StyleSheet.create({
   addSideBtnText: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#262626'
+    color: '#262626',
+    flexShrink: 1,
+    textAlign: 'center'
   },
   // Raw markdown mode
   rawMarkdownContainer: {
@@ -844,7 +867,8 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E5E5E5'
+    borderColor: '#E5E5E5',
+    overflow: 'hidden'
   },
   rawMarkdownHeader: {
     flexDirection: 'row',
@@ -892,7 +916,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E5E5'
+    borderColor: '#E5E5E5',
+    overflow: 'hidden'
   },
   selectedImageThumb: {
     width: 60,
@@ -920,7 +945,8 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#E5E5E5'
+    borderColor: '#E5E5E5',
+    overflow: 'hidden'
   },
   insertSensesBtn: {
     flexDirection: 'row',
@@ -929,12 +955,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#262626',
     borderRadius: 9,
     paddingVertical: 10,
+    paddingHorizontal: 14,
     marginTop: 10
   },
   insertSensesBtnText: {
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '600'
+    fontWeight: '600',
+    flexShrink: 1,
+    textAlign: 'center'
   },
   // Metadata Card
   metaCard: {
@@ -947,7 +976,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 3,
-    elevation: 1
+    elevation: 1,
+    overflow: 'hidden'
   },
   metaCardHeading: {
     fontSize: 11,
@@ -964,7 +994,9 @@ const styles = StyleSheet.create({
   },
   metaRowLeft: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    flexShrink: 1,
+    marginRight: 8
   },
   metaRowTitle: {
     fontSize: 13.5,
@@ -973,12 +1005,14 @@ const styles = StyleSheet.create({
   },
   metaRowRight: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    flexShrink: 1
   },
   metaRowValue: {
     fontSize: 13.5,
     fontWeight: '600',
-    color: '#222222'
+    color: '#222222',
+    flexShrink: 1
   },
   tagRow: {
     paddingVertical: 4

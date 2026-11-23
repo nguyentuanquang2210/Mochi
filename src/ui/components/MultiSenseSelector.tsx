@@ -154,30 +154,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0'
+    borderColor: '#E2E8F0',
+    overflow: 'hidden'
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4
+    marginBottom: 6,
+    flexWrap: 'wrap',
+    gap: 6
   },
   titleWithIcon: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    flexShrink: 1
   },
   titleText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#334155',
-    letterSpacing: 0.5
+    letterSpacing: 0.5,
+    flexShrink: 1
   },
   toggleAllBtn: {
-    paddingVertical: 2,
-    paddingHorizontal: 6
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    flexShrink: 0
   },
   toggleAllText: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: '#262626',
     fontWeight: '600'
   },
