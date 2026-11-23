@@ -127,7 +127,11 @@ export function CardOptionsMenu({
               <View style={styles.divider} />
 
               {/* Archived toggle */}
-              <View style={styles.menuItemWithSwitch}>
+              <TouchableOpacity
+                style={styles.menuItemWithSwitch}
+                activeOpacity={0.7}
+                onPress={onToggleArchive}
+              >
                 <View style={styles.switchLeft}>
                   <Feather name="archive" size={18} color="#555555" style={styles.itemIcon} />
                   <Text style={styles.itemText}>Lưu trữ</Text>
@@ -135,24 +139,28 @@ export function CardOptionsMenu({
                 <Switch
                   value={Boolean(card.archivedAt)}
                   onValueChange={onToggleArchive}
-                  trackColor={{ false: '#E0E0E0', true: '#777777' }}
+                  trackColor={{ false: '#E0E0E0', true: '#262626' }}
                   thumbColor="#FFFFFF"
                 />
-              </View>
+              </TouchableOpacity>
 
               {/* Review reverse toggle */}
-              <View style={styles.menuItemWithSwitch}>
+              <TouchableOpacity
+                style={styles.menuItemWithSwitch}
+                activeOpacity={0.7}
+                onPress={onToggleReviewReverse}
+              >
                 <View style={styles.switchLeft}>
                   <Ionicons name="swap-vertical" size={18} color="#555555" style={styles.itemIcon} />
                   <Text style={styles.itemText}>Ôn tập đảo chiều</Text>
                 </View>
                 <Switch
-                  value={card.reviewReverse}
+                  value={Boolean(card.reviewReverse)}
                   onValueChange={onToggleReviewReverse}
-                  trackColor={{ false: '#E0E0E0', true: '#777777' }}
+                  trackColor={{ false: '#E0E0E0', true: '#262626' }}
                   thumbColor="#FFFFFF"
                 />
-              </View>
+              </TouchableOpacity>
 
               {/* Pin card */}
               <TouchableOpacity

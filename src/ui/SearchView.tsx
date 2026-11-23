@@ -153,7 +153,13 @@ export function SearchView({
         }}
         onDuplicate={() => { onRefresh(); }}
         onToggleArchive={() => { onRefresh(); }}
-        onToggleReviewReverse={() => { onRefresh(); }}
+        onToggleReviewReverse={async () => {
+          if (selectedCardForOptions) {
+            const nextVal = await CardRepository.toggleReviewReverse(selectedCardForOptions.id);
+            setSelectedCardForOptions(prev => prev ? { ...prev, reviewReverse: nextVal } : null);
+            onRefresh();
+          }
+        }}
         onTogglePin={() => { onRefresh(); }}
         onMoveTo={() => {}}
         onEdit={() => {

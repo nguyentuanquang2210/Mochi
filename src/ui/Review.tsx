@@ -270,6 +270,16 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
   const currentCard = currentItem?.card || null;
   const sides = currentCard ? currentCard.sides : [];
 
+  const isReverseReview = Boolean(currentCard?.reviewReverse || currentCard?.objective === 'meaning_vi_en');
+  const englishWord = (currentCard?.objective === 'meaning_vi_en'
+    ? (sides[1] || currentCard?.back || '')
+    : (sides[0] || currentCard?.front || '')
+  ).trim();
+  const vietnameseMeaning = (currentCard?.objective === 'meaning_vi_en'
+    ? (sides[0] || currentCard?.front || '')
+    : (sides[1] || currentCard?.back || '')
+  ).trim();
+
   const activeTypes = selectedExerciseTypes.length > 0 ? selectedExerciseTypes : ALL_EXERCISE_TYPES;
   const effectiveExerciseType: ExerciseType = activeTypes[currentIndex % activeTypes.length];
 
@@ -305,7 +315,7 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
       setLiveCardIpa(null);
       return;
     }
-    const clean = (sides[0] || currentCard.front || '').trim().toLowerCase();
+    const clean = englishWord.trim().toLowerCase();
     const toeic = TOEIC_MAP.get(clean);
     const existingIpa = userAccent === 'en-GB'
       ? (currentCard.ipaUk || currentCard.ipaUs || toeic?.ipaUk || toeic?.ipaUs)
@@ -316,15 +326,17 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
     } else {
       setLiveCardIpa(null);
       // Tự động tra cứu và bổ sung IPA ngay lập tức cho các thẻ chưa có IPA
-      DictionaryService.lookupWord(clean).then(info => {
-        if (info.verified && (info.ipaUs || info.ipaUk)) {
-          const fetched = userAccent === 'en-GB' ? (info.ipaUk || info.ipaUs) : (info.ipaUs || info.ipaUk);
-          setLiveCardIpa(normalizeToStandardIpa(fetched));
-          CardRepository.updateIpa(currentCard.id, normalizeToStandardIpa(info.ipaUs) || null, normalizeToStandardIpa(info.ipaUk) || null).catch(() => {});
-        }
-      }).catch(() => {});
+      if (clean) {
+        DictionaryService.lookupWord(clean).then(info => {
+          if (info.verified && (info.ipaUs || info.ipaUk)) {
+            const fetched = userAccent === 'en-GB' ? (info.ipaUk || info.ipaUs) : (info.ipaUs || info.ipaUk);
+            if (fetched) setLiveCardIpa(normalizeToStandardIpa(fetched));
+            CardRepository.updateIpa(currentCard.id, normalizeToStandardIpa(info.ipaUs) || null, normalizeToStandardIpa(info.ipaUk) || null).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     }
-  }, [currentCard?.id, userAccent]);
+  }, [currentCard?.id, englishWord, userAccent]);
 
   // Toggle reveal / hide with drop effect
   const handleToggleReveal = () => {
@@ -829,29 +841,39 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
               {/* Card status badge & Speaker button phát âm từ lập tức */}
               <View style={styles.badgeRow}>
                 <View style={styles.badgeLabelContainer}>
-                  <Feather name="circle" size={10} color="#999999" style={{ marginRight: 5 }} />
-                  <Text style={styles.badgeLabel}>
-                    {currentCard.isNew ? 'THẺ MỚI' : 'ÔN TẬP'}
+                  <Feather
+                    name={isReverseReview ? 'repeat' : 'circle'}
+                    size={10}
+                    color={isReverseReview ? '#262626' : '#999999'}
+                    style={{ marginRight: 5 }}
+                  />
+                  <Text style={[styles.badgeLabel, isReverseReview && { color: '#262626', fontWeight: '700' }]}>
+                    {isReverseReview
+                      ? (currentCard.isNew ? 'THẺ MỚI · ĐẢO CHIỀU' : 'ÔN TẬP · ĐẢO CHIỀU')
+                      : (currentCard.isNew ? 'THẺ MỚI' : 'ÔN TẬP')}
                   </Text>
                 </View>
 
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <TouchableOpacity
-                    style={styles.micPracticeBtn}
-                    onPress={() => setShowVoicePractice(true)}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Feather name="mic" size={17} color="#2563EB" />
-                  </TouchableOpacity>
+                {/* Trong chế độ chuẩn: hiện loa & mic ở mặt trước. Trong chế độ đảo chiều: ẩn loa & mic ở mặt trước để không lộ đáp án */}
+                {!isReverseReview && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TouchableOpacity
+                      style={styles.micPracticeBtn}
+                      onPress={() => setShowVoicePractice(true)}
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Feather name="mic" size={17} color="#262626" />
+                    </TouchableOpacity>
 
-                  <SpeakerButton
-                    text={sides[0] || currentCard.front}
-                    size={19}
-                    color="#4B5563"
-                    activeColor="#2563EB"
-                  />
-                </View>
+                    <SpeakerButton
+                      text={englishWord}
+                      size={19}
+                      color="#4B5563"
+                      activeColor="#262626"
+                    />
+                  </View>
+                )}
               </View>
 
               <TouchableOpacity
@@ -870,8 +892,12 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                       />
                     </View>
                   )}
-                  <MarkdownCard content={sides[0] || currentCard.front} isRevealed={revealedSideIndex > 0} isTitle />
-                  {liveCardIpa ? (
+                  <MarkdownCard
+                    content={isReverseReview ? (vietnameseMeaning || sides[1] || currentCard.back || sides[0]) : (englishWord || sides[0] || currentCard.front)}
+                    isRevealed={revealedSideIndex > 0}
+                    isTitle
+                  />
+                  {!isReverseReview && liveCardIpa ? (
                     <Text style={styles.frontIpaText}>{liveCardIpa}</Text>
                   ) : null}
                 </View>
@@ -895,12 +921,52 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
                     ]}
                   >
                     <View style={styles.dashedSeparator} />
-                    {sides.slice(1, revealedSideIndex + 1).map((sideText, idx) => (
-                      <View key={idx} style={{ marginTop: idx > 0 ? 12 : 0 }}>
-                        {idx > 0 && <View style={styles.dashedSeparator} />}
-                        <MarkdownCard content={sideText} isRevealed={true} />
+
+                    {/* Khi ôn tập đảo chiều: hiển thị đáp án từ tiếng Anh, phát âm IPA và nút Loa/Mic khi lật mặt */}
+                    {isReverseReview ? (
+                      <View>
+                        <View style={styles.reverseEnglishBox}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.reverseEnglishWord}>{englishWord}</Text>
+                            {liveCardIpa ? (
+                              <Text style={styles.frontIpaText}>{liveCardIpa}</Text>
+                            ) : null}
+                          </View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <TouchableOpacity
+                              style={styles.micPracticeBtn}
+                              onPress={() => setShowVoicePractice(true)}
+                              activeOpacity={0.7}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                              <Feather name="mic" size={17} color="#262626" />
+                            </TouchableOpacity>
+                            <SpeakerButton
+                              text={englishWord}
+                              size={20}
+                              color="#4B5563"
+                              activeColor="#262626"
+                            />
+                          </View>
+                        </View>
+
+                        {/* Các mặt ẩn bổ sung (câu ví dụ, ngữ cảnh) nếu có */}
+                        {sides.slice(2).map((sideText, idx) => (
+                          <View key={idx} style={{ marginTop: 12 }}>
+                            <View style={styles.dashedSeparator} />
+                            <MarkdownCard content={sideText} isRevealed={true} />
+                          </View>
+                        ))}
                       </View>
-                    ))}
+                    ) : (
+                      /* Chế độ thông thường: hiển thị các mặt ẩn nghĩa & ví dụ */
+                      sides.slice(1, revealedSideIndex + 1).map((sideText, idx) => (
+                        <View key={idx} style={{ marginTop: idx > 0 ? 12 : 0 }}>
+                          {idx > 0 && <View style={styles.dashedSeparator} />}
+                          <MarkdownCard content={sideText} isRevealed={true} />
+                        </View>
+                      ))
+                    )}
                   </Animated.View>
                 )}
               </TouchableOpacity>
@@ -1055,7 +1121,18 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
           handleSkip();
         }}
         onToggleReviewReverse={async () => {
-          await CardRepository.toggleReviewReverse(currentCard.id);
+          const nextVal = await CardRepository.toggleReviewReverse(currentCard.id);
+          setQueue(prevQueue =>
+            prevQueue.map((item, idx) => {
+              if (idx !== currentIndex) return item;
+              return {
+                ...item,
+                card: { ...item.card, reviewReverse: nextVal },
+                direction: nextVal ? 'meaning_vi_en' : 'meaning_en_vi'
+              };
+            })
+          );
+          setRevealedSideIndex(0);
         }}
         onTogglePin={async () => {
           await CardRepository.togglePin(currentCard.id);
@@ -1077,9 +1154,9 @@ export function Review({ deck, reviewMode = 'due', onDone, onOpenDrawer, onEditC
       {currentCard && (
         <VoicePracticeModal
           visible={showVoicePractice}
-          word={sides[0] || currentCard.front}
+          word={englishWord}
           ipa={liveCardIpa}
-          meaning={sides[1] || ''}
+          meaning={vietnameseMeaning}
           onClose={() => setShowVoicePractice(false)}
         />
       )}
@@ -1547,6 +1624,18 @@ const styles = StyleSheet.create({
   },
   revealedSection: {
     marginTop: 14
+  },
+  reverseEnglishBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4
+  },
+  reverseEnglishWord: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#222222',
+    marginBottom: 2
   },
   dashedSeparator: {
     height: 1,

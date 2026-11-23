@@ -76,14 +76,12 @@ export function ReviewExerciseView({
   onNext
 }: ReviewExerciseViewProps) {
   const sides = card.sides && card.sides.length > 0 ? card.sides : [card.front, card.back].filter(Boolean);
-  // A reverse card presents Vietnamese first but still requires the learner to
-  // produce the English word.  The FSRS objective is carried by the card clone.
-  const isReverse = card.objective === 'meaning_vi_en';
-  const targetWord = (isReverse ? (sides[1] || card.back) : (sides[0] || card.front) || '').trim();
+  const isReverse = card.objective === 'meaning_vi_en' || Boolean(card.reviewReverse);
+  const targetWord = (card.objective === 'meaning_vi_en' ? (sides[1] || card.back) : (sides[0] || card.front) || '').trim();
   const coverImage = card.thumbnailUrl || card.imageUrl;
 
   // Trích xuất nghĩa tiếng Việt cô đọng kèm các nghĩa khác nếu có
-  const rawMeaning = isReverse ? (sides[0] || card.front || '') : (sides[1] || card.back || '');
+  const rawMeaning = card.objective === 'meaning_vi_en' ? (sides[0] || card.front || '') : (sides[1] || card.back || '');
   const meaningData = extractMeanings(rawMeaning, targetWord);
   const cleanMeaning = meaningData.primaryMeaning;
   const otherMeanings = meaningData.otherMeanings;

@@ -88,7 +88,8 @@ export function DeckView({
   };
 
   const handleToggleReviewReverse = async (card: CardSummary) => {
-    await CardRepository.toggleReviewReverse(card.id);
+    const nextVal = await CardRepository.toggleReviewReverse(card.id);
+    setSelectedCardForOptions(prev => prev ? { ...prev, reviewReverse: nextVal } : null);
     onRefresh();
   };
 
