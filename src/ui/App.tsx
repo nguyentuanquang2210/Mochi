@@ -473,7 +473,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { paddingHorizontal: 0, backgroundColor: 'transparent' }]}>
+    <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
 
       {/* Push-Drawer Stage */}
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: 'transparent'
+    backgroundColor: '#FAFAFA'
   },
   drawerWrapper: {
     position: 'absolute',

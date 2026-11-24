@@ -878,21 +878,29 @@ export function Review({
         </View>
       )}
 
-      <View style={[styles.cardArea, shouldCompactForKeyboard && styles.cardAreaCompact]}>
+      <View
+        style={[
+          styles.cardArea,
+          effectiveExerciseType === 'flashcard' && styles.cardAreaFlashcard,
+          shouldCompactForKeyboard && styles.cardAreaCompact
+        ]}
+      >
         {effectiveExerciseType === 'flashcard' ? (
           <ScrollView
             style={styles.flashcardOuterScroll}
             contentContainerStyle={styles.flashcardOuterContent}
             showsVerticalScrollIndicator={false}
+            showsHorizontalScrollIndicator={false}
           >
             {/* Wrapper fade-out khi thẻ bay ra + fade-in khi thẻ mới vào */}
-            <Animated.View style={{ opacity: cardFadeIn }}>
+            <Animated.View style={{ opacity: cardFadeIn, overflow: 'visible', backgroundColor: 'transparent' }}>
             {/* Animated Swipe Flashcard Component (chỉ gạt ngang trái/phải) */}
             <Animated.View
               {...panResponder.panHandlers}
               style={[
                 styles.cardBox,
                 {
+                  marginHorizontal: 18,
                   transform: [
                     { translateX: pan.x },
                     { rotate }
@@ -1566,7 +1574,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA'
+    backgroundColor: 'transparent'
   },
   header: {
     height: 52,
@@ -1574,14 +1582,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: 'transparent'
+    backgroundColor: '#FFFFFF'
   },
   headerCompact: {
     height: 32,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    backgroundColor: 'transparent'
+    backgroundColor: '#FFFFFF'
   },
   headerCompactText: {
     fontSize: 12,
@@ -1622,7 +1630,13 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 18,
     paddingTop: 14,
-    paddingBottom: 24
+    paddingBottom: 24,
+    backgroundColor: 'transparent'
+  },
+  cardAreaFlashcard: {
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
+    overflow: 'visible'
   },
   cardAreaCompact: {
     paddingHorizontal: 10,
@@ -1631,12 +1645,16 @@ const styles = StyleSheet.create({
   },
   flashcardOuterScroll: {
     flex: 1,
-    width: '100%'
+    width: '100%',
+    backgroundColor: 'transparent',
+    overflow: 'visible'
   },
   flashcardOuterContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingBottom: 10
+    paddingBottom: 10,
+    backgroundColor: 'transparent',
+    overflow: 'visible'
   },
   cardBox: {
     backgroundColor: '#FFFFFF',
@@ -1752,7 +1770,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingHorizontal: 16,
     paddingVertical: 18,
-    backgroundColor: '#FAFAFA'
+    backgroundColor: 'transparent'
   },
   controlSmallBtn: {
     width: 44,
