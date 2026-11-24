@@ -476,25 +476,23 @@ export function Review({
       });
     }
 
-    // Hiệu ứng âm thanh khi ôn tập ở tab Inbox theo mốc chuỗi đúng & khi mất chuỗi
-    if (!deck) {
-      const isCorrect = effectiveRating === 'good' || effectiveRating === 'easy';
-      if (isCorrect) {
-        const newStreak = correctStreakRef.current + 1;
-        correctStreakRef.current = newStreak;
-        consecutiveWrongRef.current = 0;
-        setTimeout(() => {
-          void SoundEffects.playForStreak(newStreak);
-        }, 200);
-      } else {
-        const prevStreak = correctStreakRef.current;
-        const newWrong = consecutiveWrongRef.current + 1;
-        consecutiveWrongRef.current = newWrong;
-        correctStreakRef.current = 0;
-        setTimeout(() => {
-          void SoundEffects.playStreakLost(prevStreak, newWrong);
-        }, 200);
-      }
+    // Hiệu ứng âm thanh khi ôn tập theo mốc chuỗi đúng & khi mất chuỗi (đồng nhất cho mọi hình thức ôn tập)
+    const isCorrect = effectiveRating === 'good' || effectiveRating === 'easy';
+    if (isCorrect) {
+      const newStreak = correctStreakRef.current + 1;
+      correctStreakRef.current = newStreak;
+      consecutiveWrongRef.current = 0;
+      setTimeout(() => {
+        void SoundEffects.playForStreak(newStreak);
+      }, 200);
+    } else {
+      const prevStreak = correctStreakRef.current;
+      const newWrong = consecutiveWrongRef.current + 1;
+      consecutiveWrongRef.current = newWrong;
+      correctStreakRef.current = 0;
+      setTimeout(() => {
+        void SoundEffects.playStreakLost(prevStreak, newWrong);
+      }, 200);
     }
 
     // Reset bộ đếm lật mặt ẩn cho thẻ tiếp theo
