@@ -1574,14 +1574,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF'
+    backgroundColor: 'transparent'
   },
   headerCompact: {
     height: 32,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF'
+    backgroundColor: 'transparent'
   },
   headerCompactText: {
     fontSize: 12,

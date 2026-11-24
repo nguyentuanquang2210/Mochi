@@ -473,7 +473,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { paddingHorizontal: 0, backgroundColor: 'transparent' }]}>
       <StatusBar style="dark" />
 
       {/* Push-Drawer Stage */}
@@ -526,7 +526,10 @@ export default function App() {
           style={[
             styles.mainWrapper,
             {
-              transform: [{ translateX: mainScreenTranslateX }]
+              transform: [{ translateX: mainScreenTranslateX }],
+              borderLeftWidth: isDrawerOpen ? StyleSheet.hairlineWidth : 0,
+              elevation: isDrawerOpen ? 8 : 0,
+              shadowOpacity: isDrawerOpen ? 0.12 : 0,
             }
           ]}
         >
@@ -628,13 +631,13 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF'
+    backgroundColor: 'transparent'
   },
   stage: {
     flex: 1,
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#FAFAFA'
+    backgroundColor: 'transparent'
   },
   drawerWrapper: {
     position: 'absolute',
@@ -651,13 +654,10 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 2,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     shadowColor: '#000',
     shadowOffset: { width: -3, height: 0 },
-    shadowOpacity: 0.12,
     shadowRadius: 8,
-    elevation: 8,
-    borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: '#E5E5E5'
   },
   mainOverlay: {
