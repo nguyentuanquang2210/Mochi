@@ -357,12 +357,7 @@ export const CardRepository = {
       args.push(deckId);
     }
 
-    // Due cards are deliberately uncapped. Only the daily admission of *new*
-    // cards is limited; this prevents an adaptive setting from hiding reviews.
-    const adaptive = await AdaptiveLearningRepository.getSettings();
-    let effectiveNewLimit = newCardsLimit ?? adaptive.dailyNewLimit;
-
-    // 1. Lấy toàn bộ thẻ đến hạn ôn tập hôm nay (bắt buộc phải ôn để không quên)
+    // 1. Lấy toàn bộ thẻ đến hạn ôn tập hôm nay (bắt buộc phải ôn để không quên, không giới hạn)
     const dueSql = `
       SELECT c.*, f.*, GROUP_CONCAT(t.name, '|') AS tag_names
       FROM cards c
@@ -375,22 +370,7 @@ export const CardRepository = {
     `;
     const dueRows = await db.getAllAsync<any>(dueSql, ...args, Date.now() + 60000);
 
-    if (newCardsLimit === undefined && adaptive.enabled) {
-      const since = Date.now() - 7 * 86400000;
-      const performance = await db.getFirstAsync<{ total: number; good: number; days: number }>(
-        `SELECT COUNT(*) total, SUM(CASE WHEN rating IN ('good','easy') THEN 1 ELSE 0 END) good,
-                COUNT(DISTINCT date(reviewed_at / 1000, 'unixepoch', 'localtime')) days
-         FROM review_logs WHERE reviewed_at >= ?`, since);
-      const suggestion = await AdaptiveLearningRepository.suggest({
-        dueCount: dueRows.length,
-        averageSeconds: 18, // response duration is optional telemetry; conservative until collected
-        retention7d: performance?.total ? (performance.good || 0) / performance.total : undefined,
-        activeDays7d: performance?.days
-      });
-      effectiveNewLimit = suggestion.limit;
-    }
-
-    // 2. Lấy thẻ mới (khi người dùng chọn bộ thẻ cụ thể hoặc đặt lại lịch, lấy toàn bộ thẻ để ôn luyện đầy đủ)
+    // 2. Lấy thẻ mới (toàn bộ thẻ chưa học hoặc theo newCardsLimit nếu được chỉ định)
     const newSql = `
       SELECT c.*, f.*, GROUP_CONCAT(t.name, '|') AS tag_names
       FROM cards c
@@ -400,9 +380,10 @@ export const CardRepository = {
       WHERE ${filters.join(' AND ')} AND (f.state IS NULL OR f.state = 'new')
       GROUP BY c.id
       ORDER BY c.created_at ASC
-      LIMIT ?
+      ${newCardsLimit !== undefined ? 'LIMIT ?' : ''}
     `;
-    const newRows = await db.getAllAsync<any>(newSql, ...args, effectiveNewLimit);
+    const newArgs = newCardsLimit !== undefined ? [...args, newCardsLimit] : args;
+    const newRows = await db.getAllAsync<any>(newSql, ...newArgs);
 
     const combined = [...dueRows, ...newRows];
     const forward: StudyQueueItem[] = combined.map(r => ({
@@ -597,21 +578,20 @@ export const CardRepository = {
       args.push(deckId);
     }
 
-    const effectiveNewLimit = newCardsLimit ?? (await AdaptiveLearningRepository.getSettings()).dailyNewLimit;
-
-    // Đếm thẻ đến hạn
+    // Đếm thẻ đến hạn (không giới hạn số lượng)
     const dueRow = await db.getFirstAsync<{ count: number }>(
       `SELECT COUNT(*) as count FROM cards c JOIN fsrs_states f ON f.card_id = c.id WHERE ${filters.join(' AND ')} AND f.state != 'new' AND f.due_at <= ?`,
       ...args, Date.now() + 60000
     );
     const dueCount = dueRow?.count ?? 0;
 
-    // Đếm thẻ mới
+    // Đếm thẻ mới (toàn bộ hoặc theo newCardsLimit nếu có)
     const newRow = await db.getFirstAsync<{ count: number }>(
       `SELECT COUNT(*) as count FROM cards c JOIN fsrs_states f ON f.card_id = c.id WHERE ${filters.join(' AND ')} AND (f.state IS NULL OR f.state = 'new')`,
       ...args
     );
-    const newCount = Math.min(newRow?.count ?? 0, effectiveNewLimit);
+    const totalNew = newRow?.count ?? 0;
+    const newCount = newCardsLimit !== undefined ? Math.min(totalNew, newCardsLimit) : totalNew;
 
     return dueCount + newCount;
   },

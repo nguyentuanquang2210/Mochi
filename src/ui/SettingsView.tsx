@@ -16,10 +16,9 @@ import {
 import { Feather, Ionicons, MaterialCommunityIcons } from './components/Icons';
 import { Header } from './components/Header';
 import type { Deck, ExerciseType } from '../domain/types';
-import { AdaptiveLearningRepository, CardRepository, UserSettingsRepository, DEFAULT_PRACTICE_MODES } from '../data/repositories';
+import { CardRepository, UserSettingsRepository, DEFAULT_PRACTICE_MODES } from '../data/repositories';
 import { database } from '../data/database';
 import { SpeechService, SpeechAccent, POPULAR_VOICES, PopularVoice } from '../services/speech';
-import { StudyReminders } from '../services/studyReminders';
 import { MochiFile } from '../services/mochiFile';
 import { SoundEffects, SoundEffectType } from '../services/soundEffects';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -62,10 +61,6 @@ export function SettingsView({
   const [deviceVoices, setDeviceVoices] = useState<Speech.Voice[]>([]);
   const [isTestingSpeech, setIsTestingSpeech] = useState(false);
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
-  const [adaptiveEnabled, setAdaptiveEnabled] = useState(true);
-  const [dailyNewLimit, setDailyNewLimit] = useState('10');
-  const [targetMinutes, setTargetMinutes] = useState('15');
-  const [remindersEnabled, setRemindersEnabled] = useState(false);
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true);
   const [playingPreviewSound, setPlayingPreviewSound] = useState<string | null>(null);
 
@@ -91,11 +86,6 @@ export function SettingsView({
       setVoiceCount(voices.length);
     };
     loadSpeechSettings();
-    AdaptiveLearningRepository.getSettings().then(s => {
-      setAdaptiveEnabled(s.enabled);
-      setDailyNewLimit(String(s.dailyNewLimit));
-      setTargetMinutes(String(s.targetMinutes));
-    });
     UserSettingsRepository.getPracticeModes().then(modes => {
       if (modes && modes.length > 0) {
         setPracticeModes(modes);
@@ -214,46 +204,6 @@ export function SettingsView({
     onUpdateUserName(name.trim());
     setIsEditingName(false);
     Alert.alert('Đã lưu', `Đã cập nhật tên người dùng thành ${name.trim()}`);
-  };
-
-  const saveAdaptive = async (
-    enabled = adaptiveEnabled,
-    customNewLimit?: number,
-    customMinutes?: number
-  ) => {
-    const dailyNew = customNewLimit !== undefined
-      ? customNewLimit
-      : Math.max(0, Math.min(50, Number(dailyNewLimit) || 0));
-    const minutes = customMinutes !== undefined
-      ? customMinutes
-      : Math.max(5, Math.min(180, Number(targetMinutes) || 15));
-
-    await AdaptiveLearningRepository.saveSettings({ enabled, dailyNewLimit: dailyNew, targetMinutes: minutes });
-    setAdaptiveEnabled(enabled);
-    setDailyNewLimit(String(dailyNew));
-    setTargetMinutes(String(minutes));
-    onRefresh();
-  };
-
-  const toggleReminders = async (val: boolean) => {
-    try {
-      if (!val) {
-        await StudyReminders.cancel();
-        setRemindersEnabled(false);
-        Alert.alert('Đã tắt nhắc học', 'Các thông báo nhắc học đã được hủy.');
-      } else {
-        const enabled = await StudyReminders.schedule();
-        setRemindersEnabled(enabled);
-        Alert.alert(
-          enabled ? 'Đã bật nhắc học' : 'Cần cấp quyền',
-          enabled
-            ? 'Mochi sẽ gửi thông báo lúc 09:15, 14:15 và 19:15 hằng ngày.'
-            : 'Hãy cho phép gửi thông báo trong cài đặt thiết bị để nhận nhắc học.'
-        );
-      }
-    } catch {
-      Alert.alert('Chưa thể bật nhắc học', 'Hãy cập nhật Expo Go hoặc dùng bản ứng dụng đã build lại để bật thông báo. Phần học vẫn hoạt động bình thường.');
-    }
   };
 
   const toggleSoundEffects = async (val: boolean) => {
@@ -607,28 +557,9 @@ export function SettingsView({
           </View>
         </View>
 
-        {/* Goals & Reminders */}
-        <Text style={styles.sectionHeader}>MỤC TIÊU & NHẮC NHỞ HỌC TẬP</Text>
+        {/* Sound Effects & Preview */}
+        <Text style={styles.sectionHeader}>ÂM THANH ÔN TẬP (INBOX)</Text>
         <View style={styles.cardBox}>
-          {/* Reminders Switch */}
-          <View style={styles.switchRow}>
-            <View style={styles.switchInfo}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Feather name="bell" size={15} color="#444444" />
-                <Text style={styles.switchTitle}>Nhắc học từ vựng</Text>
-              </View>
-              <Text style={styles.switchDesc}>Thông báo lúc 09:15 · 14:15 · 19:15 (kèm âm thanh riêng)</Text>
-            </View>
-            <Switch
-              value={remindersEnabled}
-              onValueChange={toggleReminders}
-              trackColor={{ false: '#E2E8F0', true: '#262626' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.divider} />
-
           {/* Sound Effects Switch */}
           <View style={styles.switchRow}>
             <View style={styles.switchInfo}>
@@ -703,70 +634,6 @@ export function SettingsView({
                 <Feather name={playingPreviewSound === 'reminderThongBao' ? 'volume-2' : 'bell'} size={12} color={playingPreviewSound === 'reminderThongBao' ? '#FFFFFF' : '#333333'} />
                 <Text style={[styles.soundChipText, playingPreviewSound === 'reminderThongBao' && styles.soundChipTextPlaying]}>Nhắc học 2</Text>
               </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          {/* Adaptive Learning Switch */}
-          <View style={styles.switchRow}>
-            <View style={styles.switchInfo}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <MaterialCommunityIcons name="brain" size={16} color="#444444" />
-                <Text style={styles.switchTitle}>Tự động điều chỉnh theo năng lực</Text>
-              </View>
-              <Text style={styles.switchDesc}>
-                {adaptiveEnabled ? 'Tự động đề xuất số từ mới theo tốc độ học' : 'Dùng giới hạn từ mới và thời gian thủ công'}
-              </Text>
-            </View>
-            <Switch
-              value={adaptiveEnabled}
-              onValueChange={(val) => saveAdaptive(val)}
-              trackColor={{ false: '#E2E8F0', true: '#262626' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          {/* Manual limits */}
-          <View style={styles.limitsBox}>
-            <View style={styles.limitItem}>
-              <Text style={styles.limitLabel}>TỪ MỚI / NGÀY</Text>
-              <View style={styles.presetChipsRow}>
-                {[5, 10, 15, 20].map(n => (
-                  <TouchableOpacity
-                    key={n}
-                    style={[styles.presetChip, dailyNewLimit === String(n) && styles.presetChipActive]}
-                    onPress={() => {
-                      setDailyNewLimit(String(n));
-                      void saveAdaptive(adaptiveEnabled, n, Number(targetMinutes) || 15);
-                    }}
-                  >
-                    <Text style={[styles.presetChipText, dailyNewLimit === String(n) && styles.presetChipTextActive]}>
-                      {n}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={[styles.limitItem, { marginTop: 12 }]}>
-              <Text style={styles.limitLabel}>MỤC TIÊU THỜI GIAN (PHÚT / NGÀY)</Text>
-              <View style={styles.presetChipsRow}>
-                {[10, 15, 20, 30].map(m => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.presetChip, targetMinutes === String(m) && styles.presetChipActive]}
-                    onPress={() => {
-                      setTargetMinutes(String(m));
-                      void saveAdaptive(adaptiveEnabled, Number(dailyNewLimit) || 10, m);
-                    }}
-                  >
-                    <Text style={[styles.presetChipText, targetMinutes === String(m) && styles.presetChipTextActive]}>
-                      {m}p
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
             </View>
           </View>
         </View>

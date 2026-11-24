@@ -33,6 +33,8 @@ import { QuickAddCardModal } from './components/QuickAddCardModal';
 import { SpeechService } from '../services/speech';
 import { AuthScreen } from './AuthScreen';
 import { logout, subscribeToAuth, type AuthUser } from '../services/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StudyReminders } from '../services/studyReminders';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = Math.min(Math.round(SCREEN_WIDTH * 0.82), 320);
@@ -204,12 +206,50 @@ export default function App() {
     initApp();
   }, [authUser?.uid]);
 
+  const checkNotificationPrompt = async () => {
+    try {
+      const asked = await AsyncStorage.getItem('@has_asked_notification_permission');
+      if (!asked) {
+        Alert.alert(
+          'Thông báo nhắc học',
+          'Bạn có muốn nhận thông báo nhắc nhở học từ vựng mỗi ngày (09:15, 14:15, 19:15) để duy trì thói quen học tập không?',
+          [
+            {
+              text: 'Không',
+              style: 'cancel',
+              onPress: async () => {
+                await AsyncStorage.setItem('@has_asked_notification_permission', 'declined');
+              }
+            },
+            {
+              text: 'Cho phép',
+              onPress: async () => {
+                await AsyncStorage.setItem('@has_asked_notification_permission', 'accepted');
+                try {
+                  await StudyReminders.schedule();
+                } catch (err) {
+                  console.warn('Lỗi bật nhắc học:', err);
+                }
+              }
+            }
+          ],
+          { cancelable: true }
+        );
+      } else if (asked === 'accepted') {
+        StudyReminders.schedule().catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Lỗi kiểm tra thông báo:', err);
+    }
+  };
+
   const initApp = async () => {
     try {
       await database();
       await SpeechService.init();
       await SpeechService.warmup();
       await refreshData();
+      void checkNotificationPrompt();
     } catch (e: any) {
       console.error('Init error', e);
     } finally {
@@ -631,7 +671,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent'
+    backgroundColor: '#FFFFFF'
   },
   stage: {
     flex: 1,
