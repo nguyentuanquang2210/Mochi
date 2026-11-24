@@ -43,9 +43,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [currentView, setCurrentView] = useState<'deck' | 'dashboard' | 'search' | 'create' | 'edit' | 'review' | 'trash' | 'settings' | 'import'>('deck');
   const currentViewRef = useRef(currentView);
-  useEffect(() => {
-    currentViewRef.current = currentView;
-  }, [currentView]);
+  currentViewRef.current = currentView;
   const [reviewMode, setReviewMode] = useState<'due' | 'new' | 'cram'>('due');
   // Inbox is global; a review launched from a deck remains scoped to that deck.
   const [reviewDeckId, setReviewDeckId] = useState<string | null | undefined>(undefined);
@@ -110,17 +108,23 @@ export default function App() {
 
   const panResponder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+      onMoveShouldSetPanResponderCapture: (evt, gestureState) => {
         // If drawer is closed, only capture horizontal swipe strictly from the far-left screen bezel edge
         if (!isDrawerOpenRef.current) {
-          // Khi đang ở màn hình ôn tập (review), thao tác vuốt trong màn hình là để gạt thẻ (sang trái = Chưa nhớ, sang phải = Đã nhớ).
-          // Thẻ bắt đầu từ x = 18px (paddingHorizontal: 18).
-          // Do đó, chỉ khi người dùng vuốt từ sát mép viền ngoài màn hình (x0 <= 16px) mới kích hoạt mở Dashboard/Drawer.
-          // Ở các màn hình khác (deck, dashboard, search), ngưỡng mép viền là <= 20px.
-          const edgeThreshold = currentViewRef.current === 'review' ? 16 : 20;
-          const isEdgeSwipe = gestureState.x0 <= edgeThreshold;
-          const isSwipeRight = gestureState.dx > 10;
-          const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
+          const pageX = evt?.nativeEvent?.pageX ?? gestureState?.moveX ?? 0;
+          const dx = gestureState?.dx ?? 0;
+          const dy = gestureState?.dy ?? 0;
+          // Tọa độ X điểm chạm ban đầu khi người dùng đặt ngón tay xuống màn hình
+          const startX = pageX - dx;
+
+          const isReview = currentViewRef.current === 'review';
+          // Khi đang ở Review, thẻ bắt đầu từ x = 18px (paddingHorizontal: 18).
+          // Ngưỡng mép viền ngoài màn hình phải <= 14px và điểm chạm pageX phải <= 40px.
+          // Bất kỳ thao tác vuốt nào trên thẻ (startX >= 18px) sẽ trả về false để thẻ nhận diện cử chỉ gạt (Good/Again).
+          const edgeThreshold = isReview ? 14 : 20;
+          const isEdgeSwipe = startX > 0 && startX <= edgeThreshold && pageX <= (edgeThreshold + 25);
+          const isSwipeRight = dx > 10;
+          const isHorizontal = Math.abs(dx) > Math.abs(dy) * 1.5;
           return isEdgeSwipe && isSwipeRight && isHorizontal;
         }
         // If drawer is open, capture horizontal swipe to the left
