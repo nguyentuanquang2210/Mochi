@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mochi - Spaced Repetition Flashcards",
+    "name": "Spaced Repetition",
     "slug": "mochi-cards",
     "version": "1.0.0",
     "icon": "./assets/icon.png",

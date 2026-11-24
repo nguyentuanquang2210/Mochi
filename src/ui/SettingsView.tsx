@@ -264,10 +264,15 @@ export function SettingsView({
 
   const handlePreviewSound = async (type: SoundEffectType, label: string) => {
     try {
-      setPlayingPreviewSound(label);
-      await SoundEffects.play(type);
-      setTimeout(() => {
+      if (playingPreviewSound === label) {
+        await SoundEffects.stopCurrent();
         setPlayingPreviewSound(null);
+        return;
+      }
+      setPlayingPreviewSound(label);
+      await SoundEffects.play(type, true);
+      setTimeout(() => {
+        setPlayingPreviewSound(prev => prev === label ? null : prev);
       }, 2500);
     } catch {
       setPlayingPreviewSound(null);
