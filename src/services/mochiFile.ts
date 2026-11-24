@@ -14,30 +14,57 @@ const stamp = (value: number) => `~t${value}`;
  * Templates/AI component cache are preserved as display metadata on export;
  * app scheduling remains FSRS rather than attempting to import Mochi's model. */
 export const MochiFile = {
-  async importFromPicker(): Promise<{ decks: number; cards: number }> {
+  async importFromPicker(): Promise<{ decks: number; cards: number; skippedCards: number }> {
     const result = await DocumentPicker.getDocumentAsync({ type: ['application/zip', 'application/octet-stream', '*/*'], copyToCacheDirectory: true });
-    if (result.canceled) return { decks: 0, cards: 0 };
+    if (result.canceled) return { decks: 0, cards: 0, skippedCards: 0 };
     const base64 = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: FileSystem.EncodingType.Base64 });
     const zip = await JSZip.loadAsync(base64, { base64: true });
     const source = zip.file('data.json');
     if (!source) throw new Error('Không tìm thấy data.json trong file .mochi.');
     const root = JSON.parse(await source.async('text'));
     if (!Array.isArray(root['~:decks'])) throw new Error('File .mochi không có danh sách bộ thẻ hợp lệ.');
-    let decks = 0, cards = 0;
+    let decks = 0, cards = 0, skippedCards = 0;
     for (const sourceDeck of root['~:decks']) {
-      const deckId = id(); const now = Date.now(); const name = String(sourceDeck['~:name'] || 'Mochi import');
+      const name = String(sourceDeck['~:name'] || 'Mochi import').trim();
+      const now = Date.now();
       await withTransaction(async tx => {
-        await tx.runAsync('INSERT INTO decks(id,name,description,created_at,updated_at) VALUES(?,?,?,?,?)', deckId, name, 'Imported from Mochi', now, now);
+        // Kiểm tra xem bộ thẻ cùng tên đã tồn tại chưa (không tạo trùng bộ thẻ)
+        let deckId: string;
+        const existingDeck = await tx.getFirstAsync<{ id: string }>('SELECT id FROM decks WHERE name = ? COLLATE NOCASE', name);
+        if (existingDeck) {
+          deckId = existingDeck.id;
+        } else {
+          deckId = id();
+          await tx.runAsync('INSERT INTO decks(id,name,description,created_at,updated_at) VALUES(?,?,?,?,?)', deckId, name, 'Imported from Mochi', now, now);
+          decks++;
+        }
+
+        // Lấy danh sách từ (front) đã có sẵn trong CHÍNH BỘ THẺ NÀY để tránh double từ
+        const existingCards = await tx.getAllAsync<{ front: string }>('SELECT front FROM cards WHERE deck_id = ? AND trashed_at IS NULL', deckId);
+        const existingFrontSet = new Set(existingCards.map(c => c.front.trim().toLowerCase()));
+
         const sourceCards = sourceDeck['~:cards']?.['~#list'] || [];
         for (const item of sourceCards) {
           if (item['~:trashed?']) continue;
-          const cardId = id(); const content = String(item['~:content'] || item['~:name'] || '').trim();
+          const content = String(item['~:content'] || item['~:name'] || '').trim();
           if (!content) continue;
-          const [front = '', ...rest] = content.split(/\n\s*---\s*\n/); const back = rest.join('\n---\n');
+          const [front = '', ...rest] = content.split(/\n\s*---\s*\n/);
+          const frontTrimmed = front.trim();
+          if (!frontTrimmed) continue;
+
+          // Chỉ so sánh với tệp thẻ đó: nếu từ đã có trong bộ thẻ này thì bỏ qua
+          if (existingFrontSet.has(frontTrimmed.toLowerCase())) {
+            skippedCards++;
+            continue;
+          }
+          existingFrontSet.add(frontTrimmed.toLowerCase());
+
+          const cardId = id();
+          const back = rest.join('\n---\n');
           const reviews = Array.isArray(item['~:reviews']) ? item['~:reviews'] : [];
           // Parent card first: imported review_logs have a foreign key to it.
           await tx.runAsync(`INSERT INTO cards(id,deck_id,front,back,content,card_type,objective,created_at,updated_at,archived_at,trashed_at,is_pinned,review_reverse)
-            VALUES(?,?,?,?,?,'basic','meaning_en_vi',?,?,NULL,NULL,0,0)`, cardId, deckId, front.trim(), back.trim(), content, dt(item['~:created-at'], now), dt(item['~:updated-at'], now));
+            VALUES(?,?,?,?,?,'basic','meaning_en_vi',?,?,NULL,NULL,0,0)`, cardId, deckId, frontTrimmed, back.trim(), content, dt(item['~:created-at'], now), dt(item['~:updated-at'], now));
           let state = await newFsrsState(new Date(dt(item['~:created-at'], now))); state.cardId = cardId;
           for (const review of reviews) {
             const date = Number(String(review['~:date'] || '').replace('~t', '')) || now;
@@ -61,9 +88,8 @@ export const MochiFile = {
           cards++;
         }
       });
-      decks++;
     }
-    return { decks, cards };
+    return { decks, cards, skippedCards };
   },
 
   async exportAll(): Promise<void> {

@@ -17,6 +17,7 @@ import { Feather, Ionicons, MaterialCommunityIcons } from './components/Icons';
 import { Header } from './components/Header';
 import type { Deck, ExerciseType } from '../domain/types';
 import { AdaptiveLearningRepository, CardRepository, UserSettingsRepository, DEFAULT_PRACTICE_MODES } from '../data/repositories';
+import { database } from '../data/database';
 import { SpeechService, SpeechAccent, POPULAR_VOICES, PopularVoice } from '../services/speech';
 import { StudyReminders } from '../services/studyReminders';
 import { MochiFile } from '../services/mochiFile';
@@ -249,18 +250,40 @@ export function SettingsView({
       Alert.alert('Thiếu thông tin', 'Vui lòng dán nội dung thẻ và chọn một bộ thẻ.');
       return;
     }
+
+    // Lấy danh sách từ đã có trong đúng bộ thẻ đang chọn (chỉ so sánh với tệp thẻ đó)
+    const db = await database();
+    const existingCards = await db.getAllAsync<{ front: string }>(
+      'SELECT front FROM cards WHERE deck_id = ? AND trashed_at IS NULL',
+      selectedDeckForImport
+    );
+    const existingFrontSet = new Set(existingCards.map(c => c.front.trim().toLowerCase()));
+
     const cardBlocks = importText.split(/\n\s*===\s*\n|\n\n\n+/);
     let count = 0;
+    let skipped = 0;
     for (const block of cardBlocks) {
-      if (block.trim()) {
+      const trimmedBlock = block.trim();
+      if (trimmedBlock) {
+        const [front = ''] = trimmedBlock.split(/\n\s*---\s*\n/);
+        const frontKey = front.trim().toLowerCase();
+        if (existingFrontSet.has(frontKey)) {
+          skipped++;
+          continue;
+        }
+        existingFrontSet.add(frontKey);
+
         await CardRepository.create({
           deckId: selectedDeckForImport,
-          content: block.trim()
+          content: trimmedBlock
         });
         count++;
       }
     }
-    Alert.alert('Nhập thẻ thành công', `Đã nhập thành công ${count} thẻ vào bộ thẻ!`);
+    const message = skipped > 0
+      ? `Đã thêm ${count} thẻ mới. Đã bỏ qua ${skipped} từ đã có sẵn trong bộ thẻ này.`
+      : `Đã nhập thành công ${count} thẻ vào bộ thẻ!`;
+    Alert.alert('Nhập thẻ hoàn tất', message);
     setImportText('');
     setShowImportBox(false);
     onRefresh();
@@ -269,9 +292,12 @@ export function SettingsView({
   const handleMochiImport = async () => {
     try {
       const result = await MochiFile.importFromPicker();
-      if (result.cards) {
+      if (result.cards || result.skippedCards) {
         await onRefresh();
-        Alert.alert('Nhập Mochi hoàn tất', `Đã nhập ${result.cards} thẻ trong ${result.decks} bộ thẻ.`);
+        const msg = result.skippedCards > 0
+          ? `Đã thêm ${result.cards} thẻ mới${result.decks > 0 ? ` vào ${result.decks} bộ thẻ mới` : ' vào bộ thẻ đã có'}. Đã bỏ qua ${result.skippedCards} từ đã tồn tại trong bộ thẻ.`
+          : `Đã nhập ${result.cards} thẻ trong ${result.decks} bộ thẻ.`;
+        Alert.alert('Nhập Mochi hoàn tất', msg);
       }
     } catch (error: any) {
       Alert.alert('Không thể nhập file Mochi', error?.message || 'File không đúng định dạng .mochi.');
