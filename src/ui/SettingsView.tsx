@@ -21,6 +21,8 @@ import { database } from '../data/database';
 import { SpeechService, SpeechAccent, POPULAR_VOICES, PopularVoice } from '../services/speech';
 import { StudyReminders } from '../services/studyReminders';
 import { MochiFile } from '../services/mochiFile';
+import { SoundEffects, SoundEffectType } from '../services/soundEffects';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const SETTINGS_PRACTICE_OPTIONS: { id: ExerciseType; label: string; desc: string }[] = [
   { id: 'flashcard', label: 'Lật thẻ truyền thống', desc: 'Chạm để lật mở xem mặt sau / mặt ẩn' },
@@ -64,6 +66,8 @@ export function SettingsView({
   const [dailyNewLimit, setDailyNewLimit] = useState('10');
   const [targetMinutes, setTargetMinutes] = useState('15');
   const [remindersEnabled, setRemindersEnabled] = useState(false);
+  const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true);
+  const [playingPreviewSound, setPlayingPreviewSound] = useState<string | null>(null);
 
   // Modal chọn giọng đọc dạng dropdown sheet
   const [showVoiceModal, setShowVoiceModal] = useState(false);
@@ -97,6 +101,13 @@ export function SettingsView({
         setPracticeModes(modes);
       }
     });
+    AsyncStorage.getItem('sound_effects_enabled').then(v => {
+      if (v !== null) {
+        const enabled = JSON.parse(v);
+        setSoundEffectsEnabled(enabled);
+        SoundEffects.setEnabled(enabled);
+      }
+    }).catch(() => {});
   }, []);
 
   const handleTogglePracticeMode = (modeId: ExerciseType) => {
@@ -242,6 +253,24 @@ export function SettingsView({
       }
     } catch {
       Alert.alert('Chưa thể bật nhắc học', 'Hãy cập nhật Expo Go hoặc dùng bản ứng dụng đã build lại để bật thông báo. Phần học vẫn hoạt động bình thường.');
+    }
+  };
+
+  const toggleSoundEffects = async (val: boolean) => {
+    setSoundEffectsEnabled(val);
+    SoundEffects.setEnabled(val);
+    await AsyncStorage.setItem('sound_effects_enabled', JSON.stringify(val)).catch(() => {});
+  };
+
+  const handlePreviewSound = async (type: SoundEffectType, label: string) => {
+    try {
+      setPlayingPreviewSound(label);
+      await SoundEffects.play(type);
+      setTimeout(() => {
+        setPlayingPreviewSound(null);
+      }, 2500);
+    } catch {
+      setPlayingPreviewSound(null);
     }
   };
 
@@ -583,7 +612,7 @@ export function SettingsView({
                 <Feather name="bell" size={15} color="#444444" />
                 <Text style={styles.switchTitle}>Nhắc học từ vựng</Text>
               </View>
-              <Text style={styles.switchDesc}>Thông báo lúc 09:15 · 14:15 · 19:15</Text>
+              <Text style={styles.switchDesc}>Thông báo lúc 09:15 · 14:15 · 19:15 (kèm âm thanh riêng)</Text>
             </View>
             <Switch
               value={remindersEnabled}
@@ -591,6 +620,85 @@ export function SettingsView({
               trackColor={{ false: '#E2E8F0', true: '#262626' }}
               thumbColor="#FFFFFF"
             />
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Sound Effects Switch */}
+          <View style={styles.switchRow}>
+            <View style={styles.switchInfo}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Feather name="volume-2" size={15} color="#444444" />
+                <Text style={styles.switchTitle}>Âm thanh khích lệ khi ôn tập (Inbox)</Text>
+              </View>
+              <Text style={styles.switchDesc}>Khen khi đúng mốc 3, 6, 12 câu · Nhắc nhở khi mất chuỗi</Text>
+            </View>
+            <Switch
+              value={soundEffectsEnabled}
+              onValueChange={toggleSoundEffects}
+              trackColor={{ false: '#E2E8F0', true: '#262626' }}
+              thumbColor="#FFFFFF"
+            />
+          </View>
+
+          {/* Sound Preview Row */}
+          <View style={styles.soundPreviewArea}>
+            <Text style={styles.soundPreviewLabel}>NGHE THỬ CÁC ÂM THANH ỨNG DỤNG:</Text>
+            <View style={styles.soundPreviewGrid}>
+              <TouchableOpacity
+                style={[styles.soundChip, playingPreviewSound === 'praise3' && styles.soundChipPlaying]}
+                onPress={() => handlePreviewSound('praise3', 'praise3')}
+                activeOpacity={0.7}
+              >
+                <Feather name={playingPreviewSound === 'praise3' ? 'volume-2' : 'play'} size={12} color={playingPreviewSound === 'praise3' ? '#FFFFFF' : '#333333'} />
+                <Text style={[styles.soundChipText, playingPreviewSound === 'praise3' && styles.soundChipTextPlaying]}>Khen (3 câu)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.soundChip, playingPreviewSound === 'cheer6' && styles.soundChipPlaying]}
+                onPress={() => handlePreviewSound('cheer6', 'cheer6')}
+                activeOpacity={0.7}
+              >
+                <Feather name={playingPreviewSound === 'cheer6' ? 'volume-2' : 'play'} size={12} color={playingPreviewSound === 'cheer6' ? '#FFFFFF' : '#333333'} />
+                <Text style={[styles.soundChipText, playingPreviewSound === 'cheer6' && styles.soundChipTextPlaying]}>Cố lên em (6 từ)</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.soundChip, playingPreviewSound === 'master12' && styles.soundChipPlaying]}
+                onPress={() => handlePreviewSound('master12', 'master12')}
+                activeOpacity={0.7}
+              >
+                <Feather name={playingPreviewSound === 'master12' ? 'volume-2' : 'play'} size={12} color={playingPreviewSound === 'master12' ? '#FFFFFF' : '#333333'} />
+                <Text style={[styles.soundChipText, playingPreviewSound === 'master12' && styles.soundChipTextPlaying]}>Đúng 12 từ</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.soundChip, playingPreviewSound === 'streakLost' && styles.soundChipPlaying]}
+                onPress={() => handlePreviewSound('streakLost', 'streakLost')}
+                activeOpacity={0.7}
+              >
+                <Feather name={playingPreviewSound === 'streakLost' ? 'volume-2' : 'play'} size={12} color={playingPreviewSound === 'streakLost' ? '#FFFFFF' : '#333333'} />
+                <Text style={[styles.soundChipText, playingPreviewSound === 'streakLost' && styles.soundChipTextPlaying]}>Mất chuỗi</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.soundChip, playingPreviewSound === 'reminderHoc' && styles.soundChipPlaying]}
+                onPress={() => handlePreviewSound('reminderHoc', 'reminderHoc')}
+                activeOpacity={0.7}
+              >
+                <Feather name={playingPreviewSound === 'reminderHoc' ? 'volume-2' : 'bell'} size={12} color={playingPreviewSound === 'reminderHoc' ? '#FFFFFF' : '#333333'} />
+                <Text style={[styles.soundChipText, playingPreviewSound === 'reminderHoc' && styles.soundChipTextPlaying]}>Nhắc học 1</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.soundChip, playingPreviewSound === 'reminderThongBao' && styles.soundChipPlaying]}
+                onPress={() => handlePreviewSound('reminderThongBao', 'reminderThongBao')}
+                activeOpacity={0.7}
+              >
+                <Feather name={playingPreviewSound === 'reminderThongBao' ? 'volume-2' : 'bell'} size={12} color={playingPreviewSound === 'reminderThongBao' ? '#FFFFFF' : '#333333'} />
+                <Text style={[styles.soundChipText, playingPreviewSound === 'reminderThongBao' && styles.soundChipTextPlaying]}>Nhắc học 2</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.divider} />
@@ -1624,5 +1732,46 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     color: '#222222'
+  },
+  soundPreviewArea: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EEEEEE'
+  },
+  soundPreviewLabel: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#888888',
+    marginBottom: 8,
+    letterSpacing: 0.5
+  },
+  soundPreviewGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6
+  },
+  soundChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E5E5E5'
+  },
+  soundChipPlaying: {
+    backgroundColor: '#262626',
+    borderColor: '#262626'
+  },
+  soundChipText: {
+    fontSize: 12,
+    color: '#333333',
+    fontWeight: '600'
+  },
+  soundChipTextPlaying: {
+    color: '#FFFFFF'
   }
 });

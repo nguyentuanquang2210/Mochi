@@ -18,7 +18,9 @@
         "expo-notifications",
         {
           "sounds": [
-            "./assets/sounds/study-reminder.mp3"
+            "./assets/sounds/study-reminder.mp3",
+            "./assets/sounds/thongbaohoc.mp3",
+            "./assets/sounds/thongbao.mp3"
           ]
         }
       ]

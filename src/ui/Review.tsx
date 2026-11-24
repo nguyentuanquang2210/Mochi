@@ -25,6 +25,7 @@ import { SpeakerButton, lastSpeakerPressTimestamp } from './components/SpeakerBu
 import { VoicePracticeModal } from './components/VoicePracticeModal';
 import { ReviewExerciseView, ExerciseType } from './components/ReviewExerciseView';
 import { SpeechService } from '../services/speech';
+import { SoundEffects } from '../services/soundEffects';
 import { TOEIC_MAP } from '../data/toeicWordlist';
 import { DictionaryService, normalizeToStandardIpa } from '../services/dictionary';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -181,6 +182,8 @@ export function Review({
   // Refs to avoid stale closure in PanResponder
   const queueRef = useRef<StudyQueueItem[]>([]);
   const currentIndexRef = useRef(0);
+  const correctStreakRef = useRef(0);
+  const consecutiveWrongRef = useRef(0);
 
   useEffect(() => {
     // Duy trì phần cứng Audio DAC luôn active trong suốt quá trình ôn tập thẻ
@@ -188,6 +191,7 @@ export function Review({
     SpeechService.startKeepAlive();
     return () => {
       SpeechService.stopKeepAlive();
+      SoundEffects.stopCurrent();
     };
   }, []);
 
@@ -470,6 +474,27 @@ export function Review({
         reReviewCount: (item.reReviewCount || 0) + 1,
         revealCount: reveals
       });
+    }
+
+    // Hiệu ứng âm thanh khi ôn tập ở tab Inbox theo mốc chuỗi đúng & khi mất chuỗi
+    if (!deck) {
+      const isCorrect = effectiveRating === 'good' || effectiveRating === 'easy';
+      if (isCorrect) {
+        const newStreak = correctStreakRef.current + 1;
+        correctStreakRef.current = newStreak;
+        consecutiveWrongRef.current = 0;
+        setTimeout(() => {
+          void SoundEffects.playForStreak(newStreak);
+        }, 200);
+      } else {
+        const prevStreak = correctStreakRef.current;
+        const newWrong = consecutiveWrongRef.current + 1;
+        consecutiveWrongRef.current = newWrong;
+        correctStreakRef.current = 0;
+        setTimeout(() => {
+          void SoundEffects.playStreakLost(prevStreak, newWrong);
+        }, 200);
+      }
     }
 
     // Reset bộ đếm lật mặt ẩn cho thẻ tiếp theo

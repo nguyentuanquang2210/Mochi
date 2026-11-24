@@ -39,19 +39,34 @@ export const StudyReminders = {
     const granted = (permission as any).granted === true || (permission as any).status === 'granted';
     if (!granted) return false;
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('study-reminders', {
-        name: 'Nhắc học từ vựng', importance: Notifications.AndroidImportance.DEFAULT,
-        sound: 'study-reminder.mp3', vibrationPattern: [0, 180, 100, 180]
+      await Notifications.setNotificationChannelAsync('study-reminders-hoc', {
+        name: 'Nhắc học từ vựng (Thông báo học)',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        sound: 'thongbaohoc.mp3',
+        vibrationPattern: [0, 180, 100, 180]
+      });
+      await Notifications.setNotificationChannelAsync('study-reminders-thongbao', {
+        name: 'Nhắc học từ vựng (Thông báo nhắc nhở)',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        sound: 'thongbao.mp3',
+        vibrationPattern: [0, 180, 100, 180]
       });
     }
     await Notifications.cancelAllScheduledNotificationsAsync();
-    for (const [index, hour] of [9, 14, 19].entries()) {
+    const reminderSlots = [
+      { hour: 9, minute: 15, sound: 'thongbaohoc.mp3', channelId: 'study-reminders-hoc' },
+      { hour: 14, minute: 15, sound: 'thongbao.mp3', channelId: 'study-reminders-thongbao' },
+      { hour: 19, minute: 15, sound: 'thongbaohoc.mp3', channelId: 'study-reminders-hoc' }
+    ];
+    for (const [index, slot] of reminderSlots.entries()) {
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Mochi nhắc bạn học', body: REMINDER_MESSAGES[index % REMINDER_MESSAGES.length],
-          sound: 'study-reminder.mp3', ...(Platform.OS === 'android' ? { channelId: 'study-reminders' } : {})
+          title: 'Mochi nhắc bạn học',
+          body: REMINDER_MESSAGES[index % REMINDER_MESSAGES.length],
+          sound: slot.sound,
+          ...(Platform.OS === 'android' ? { channelId: slot.channelId } : {})
         },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour, minute: 15 }
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: slot.hour, minute: slot.minute }
       });
     }
     return true;
