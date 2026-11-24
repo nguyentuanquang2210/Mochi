@@ -611,7 +611,7 @@ export function QuickAddCardModal({
                 activeOpacity={0.7}
               >
                 <Feather name="plus" size={16} color="#9E9E9E" style={{ marginRight: 6 }} />
-                <Text style={styles.addHiddenSideText}>Add hidden side</Text>
+                <Text style={styles.addHiddenSideText}>Thêm mặt ẩn</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -649,7 +649,7 @@ export function QuickAddCardModal({
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.hideTextBtn} onPress={() => applyFormatting('cloze')}>
-              <Text style={styles.hideTextLabel}>Hide text</Text>
+              <Text style={styles.hideTextLabel}>Ẩn chữ</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

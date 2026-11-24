@@ -48,8 +48,8 @@ export function CreateActionSheetModal({
                   <MaterialCommunityIcons name="card-text-outline" size={24} color="#333333" />
                 </View>
                 <View style={styles.textColumn}>
-                  <Text style={styles.titleText}>New Card</Text>
-                  <Text style={styles.subtitleText}>Create a new note or flash card.</Text>
+                  <Text style={styles.titleText}>Thẻ mới</Text>
+                  <Text style={styles.subtitleText}>Tạo ghi chú hoặc thẻ ghi nhớ mới.</Text>
                 </View>
               </TouchableOpacity>
 
@@ -66,8 +66,8 @@ export function CreateActionSheetModal({
                   <MaterialCommunityIcons name="card-multiple-outline" size={24} color="#333333" />
                 </View>
                 <View style={styles.textColumn}>
-                  <Text style={styles.titleText}>New Diagram card</Text>
-                  <Text style={styles.subtitleText}>Hide and reveal parts of an image.</Text>
+                  <Text style={styles.titleText}>Thẻ sơ đồ hình ảnh</Text>
+                  <Text style={styles.subtitleText}>Ẩn và hiện các phần trên ảnh minh họa.</Text>
                 </View>
               </TouchableOpacity>
 
@@ -84,8 +84,8 @@ export function CreateActionSheetModal({
                   <Ionicons name="folder-sharp" size={22} color="#555555" />
                 </View>
                 <View style={styles.textColumn}>
-                  <Text style={styles.titleText}>New Deck</Text>
-                  <Text style={styles.subtitleText}>Organize your cards with decks.</Text>
+                  <Text style={styles.titleText}>Bộ thẻ mới</Text>
+                  <Text style={styles.subtitleText}>Sắp xếp và quản lý các thẻ theo chủ đề.</Text>
                 </View>
               </TouchableOpacity>
             </View>
