@@ -42,6 +42,10 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [currentView, setCurrentView] = useState<'deck' | 'dashboard' | 'search' | 'create' | 'edit' | 'review' | 'trash' | 'settings' | 'import'>('deck');
+  const currentViewRef = useRef(currentView);
+  useEffect(() => {
+    currentViewRef.current = currentView;
+  }, [currentView]);
   const [reviewMode, setReviewMode] = useState<'due' | 'new' | 'cram'>('due');
   // Inbox is global; a review launched from a deck remains scoped to that deck.
   const [reviewDeckId, setReviewDeckId] = useState<string | null | undefined>(undefined);
@@ -107,11 +111,16 @@ export default function App() {
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-        // If drawer is closed, only capture horizontal swipe from the far-left edge
+        // If drawer is closed, only capture horizontal swipe strictly from the far-left screen bezel edge
         if (!isDrawerOpenRef.current) {
-          const isEdgeSwipe = gestureState.x0 < 45;
-          const isSwipeRight = gestureState.dx > 8;
-          const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.3;
+          // Khi đang ở màn hình ôn tập (review), thao tác vuốt trong màn hình là để gạt thẻ (sang trái = Chưa nhớ, sang phải = Đã nhớ).
+          // Thẻ bắt đầu từ x = 18px (paddingHorizontal: 18).
+          // Do đó, chỉ khi người dùng vuốt từ sát mép viền ngoài màn hình (x0 <= 16px) mới kích hoạt mở Dashboard/Drawer.
+          // Ở các màn hình khác (deck, dashboard, search), ngưỡng mép viền là <= 20px.
+          const edgeThreshold = currentViewRef.current === 'review' ? 16 : 20;
+          const isEdgeSwipe = gestureState.x0 <= edgeThreshold;
+          const isSwipeRight = gestureState.dx > 10;
+          const isHorizontal = Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
           return isEdgeSwipe && isSwipeRight && isHorizontal;
         }
         // If drawer is open, capture horizontal swipe to the left
