@@ -747,7 +747,7 @@ export const CardRepository = {
     await db.runAsync('UPDATE cards SET deck_id = ?, updated_at = ? WHERE id = ?', targetDeckId, Date.now(), cardId);
   },
 
-  async review(card: CardSummary, state: FsrsState, rating: Rating): Promise<FsrsState> {
+  async review(card: CardSummary, state: FsrsState, rating: Rating, durationMs?: number): Promise<FsrsState> {
     const reviewedAt = Date.now();
     const next = await schedule(state, rating, new Date(reviewedAt));
 
@@ -772,12 +772,14 @@ export const CardRepository = {
       };
     }
 
+    const reviewLogPayload = durationMs !== undefined ? { ...next.review, duration: durationMs } : next.review;
+
     await withTransaction(async tx => {
       await persistState(tx, finalState);
       await tx.runAsync(
         `INSERT INTO review_logs (id, card_id, objective, rating, reviewed_at, state_before, state_after, scheduled_days, elapsed_days, review_json)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        id(), card.id, card.objective, rating, reviewedAt, state.state, finalState.state, finalState.scheduledDays, next.state.elapsedDays, JSON.stringify(next.review)
+        id(), card.id, card.objective, rating, reviewedAt, state.state, finalState.state, finalState.scheduledDays, next.state.elapsedDays, JSON.stringify(reviewLogPayload)
       );
     });
     return finalState;

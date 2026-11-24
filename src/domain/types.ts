@@ -112,6 +112,7 @@ export interface StudyQueueItem {
   fsrsRecorded?: boolean;
   reReviewCount?: number;
   revealCount?: number;
+  lastResponseTimeMs?: number;
 }
 
 export interface AdaptiveLearningSettings {

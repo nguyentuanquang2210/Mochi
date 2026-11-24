@@ -104,11 +104,14 @@ export function Review({
   const [currentRevealCount, setCurrentRevealCount] = useState(0);
   const currentRevealCountRef = useRef(0);
   const hasRevealedInCurrentAttemptRef = useRef(false);
+  // Theo dõi ngầm thời điểm xuất hiện của thẻ để tính thời gian phản hồi (Retrieval Latency)
+  const cardStartTimeRef = useRef<number>(Date.now());
 
   // Khi chuyển sang một thẻ mới trong phiên:
-  // Reset trạng thái "đã lật ở lượt này" và khởi tạo số lần lật tích lũy của thẻ đó
+  // Reset trạng thái "đã lật ở lượt này", ghi lại thời điểm bắt đầu xuất hiện thẻ và khởi tạo số lần lật tích lũy của thẻ đó
   useEffect(() => {
     hasRevealedInCurrentAttemptRef.current = false;
+    cardStartTimeRef.current = Date.now();
     const initialReveals = queue[currentIndex]?.revealCount || 0;
     currentRevealCountRef.current = initialReveals;
     setCurrentRevealCount(initialReveals);
@@ -427,6 +430,27 @@ export function Review({
       useNativeDriver: true,
     }).start();
 
+    // Đo thời gian nhận diện và phản hồi (Retrieval Latency / Response Time) chạy ngầm
+    const responseTimeMs = Math.max(100, Date.now() - (cardStartTimeRef.current || Date.now()));
+    const responseSeconds = responseTimeMs / 1000;
+
+    // Ngưỡng thời gian khoa học (Retrieval Latency Benchmarks):
+    // 1. Thẻ Flashcard thông thường:
+    //    - <= 5.0s: Phản xạ nhanh, trí nhớ đã củng cố vững vàng -> 'good' / 'easy', không lặp lại.
+    //    - > 5.0s đến <= 12.0s: Do dự, mất nhiều thời gian nhớ lại -> hạ 'hard', tự động chèn lại sau 3 thẻ.
+    //    - > 12.0s: Quá lâu, suýt quên hoàn toàn -> hạ 'again', tự động chèn lại sau 3 thẻ.
+    // 2. Các bài tập tương tác (fill_in_blank, memory_write, listening, speaking, sentence_cloze, word_family):
+    //    - Cần thời gian đọc ngữ cảnh câu, nghe audio và gõ phím (ước tính thao tác gõ 3-5 giây)
+    //    - <= 9.0s: Nhanh, phản xạ gõ tốt -> giữ nguyên 'good' / 'easy'.
+    //    - > 9.0s đến <= 20.0s: Do dự, ngẫm nghĩ lâu mới gõ xong -> hạ 'hard', tự động chèn lại sau 3 thẻ.
+    //    - > 20.0s: Chật vật hoặc gần như quên -> hạ 'again', tự động chèn lại sau 3 thẻ.
+    const isInteractive = effectiveExerciseType !== 'flashcard';
+    const hesitationThreshold = isInteractive ? 9.0 : 5.0;
+    const lapseThreshold = isInteractive ? 20.0 : 12.0;
+
+    const isHesitant = responseSeconds > hesitationThreshold;
+    const isLapse = responseSeconds > lapseThreshold;
+
     // Khi ôn tập trong 1 tệp thẻ cụ thể (Boolean(deck)) hoặc ở chế độ cram:
     // TUYỆT ĐỐI KHÔNG ghi nhận lượt ôn FSRS, không tăng reps, không thay đổi due date.
     // Vì đây là người dùng tự bấm ôn tập tự do theo tệp thẻ.
@@ -436,15 +460,15 @@ export function Review({
     let updatedItem = item;
 
     // Trong phiên ôn tập hằng ngày Inbox (chuẩn Mochi Spaced Repetition):
-    // Căn cứ vào số lần người dùng phải lật xem lại mặt ẩn để điều chỉnh mức độ nhớ:
+    // Căn cứ vào số lần người dùng phải lật xem lại mặt ẩn HOẶC thời gian ngẫm nghĩ để điều chỉnh mức độ nhớ:
     let effectiveRating: Rating = rating;
     if (!isFreeDeckPractice) {
-      if (rating === 'good') {
-        if (reveals >= 3) {
-          // Lật xem mặt ẩn >= 3 lần: Người học phải xem đáp án nhiều lần -> tính là 'again'
+      if (rating === 'good' || rating === 'easy') {
+        if (reveals >= 3 || isLapse) {
+          // Lật xem mặt ẩn >= 3 lần HOẶC nghĩ quá lâu (> 12s flashcard / > 20s bài tập) -> tính là 'again'
           effectiveRating = 'again';
-        } else if (reveals >= 1) {
-          // Lật xem mặt ẩn 1-2 lần: Chưa đạt phản xạ nhớ chủ động tuyệt đối -> hạ thành 'hard'
+        } else if (reveals >= 1 || isHesitant) {
+          // Lật xem mặt ẩn 1-2 lần HOẶC do dự, nghĩ lâu (> 5s flashcard / > 9s bài tập) -> hạ thành 'hard'
           effectiveRating = 'hard';
         }
       }
@@ -453,7 +477,7 @@ export function Review({
     try {
       if (!item.fsrsRecorded && !isFreeDeckPractice) {
         const oldState = item.state;
-        const nextState = await CardRepository.review(item.card, oldState, effectiveRating);
+        const nextState = await CardRepository.review(item.card, oldState, effectiveRating, responseTimeMs);
         updatedItem = { ...item, state: nextState, fsrsRecorded: true };
         setHistory(prev => [...prev, { card: item.card, state: nextState, previousState: oldState }]);
       }
@@ -462,17 +486,18 @@ export function Review({
     }
 
     // Vòng lặp học tập trong phiên (Intra-session learning loop chuẩn Mochi):
-    // 1. Nếu trả lời sai ('again' hoặc bị giáng xuống 'again' do lật xem >= 3 lần):
-    // 2. HOẶC bấm 'good' nhưng trong phiên Inbox người dùng vẫn phải lật xem mặt ẩn (reveals >= 1):
-    // -> BẮT BUỘC chèn lại thẻ sau 3 thẻ nữa để người học tự kiểm tra lại trí nhớ mà KHÔNG xem mặt ẩn!
-    const needsRepeat = effectiveRating === 'again' || (!isFreeDeckPractice && reveals >= 1);
+    // 1. Nếu trả lời sai ('again' hoặc bị giáng xuống 'again' do lật xem >= 3 lần hoặc thời gian quá lâu):
+    // 2. HOẶC bấm 'good' nhưng trong phiên Inbox người dùng vẫn phải lật xem mặt ẩn (reveals >= 1) HOẶC mất nhiều thời gian do dự (isHesitant):
+    // -> BẮT BUỘC chèn lại thẻ sau 3 thẻ nữa để người học tự kiểm tra lại trí nhớ mà không xem mặt ẩn với phản xạ nhanh hơn!
+    const needsRepeat = effectiveRating === 'again' || (!isFreeDeckPractice && (reveals >= 1 || isHesitant));
     let nextQueue = [...curQueue];
     if (needsRepeat) {
       const insertAt = Math.min(nextQueue.length, curIdx + 1 + 3);
       nextQueue.splice(insertAt, 0, {
         ...updatedItem,
         reReviewCount: (item.reReviewCount || 0) + 1,
-        revealCount: reveals
+        revealCount: reveals,
+        lastResponseTimeMs: responseTimeMs
       });
     }
 
@@ -552,6 +577,7 @@ export function Review({
     currentIndexRef.current = prevIdx;
     setCurrentIndex(prevIdx);
     setRevealedSideIndex(0);
+    cardStartTimeRef.current = Date.now();
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
     // Fade-in thẻ đầu tiên khi load xong
@@ -579,6 +605,11 @@ export function Review({
     queueRef.current = nextQueue;
     setQueue(nextQueue);
     setRevealedSideIndex(0);
+    hasRevealedInCurrentAttemptRef.current = false;
+    const nextInitialReveals = nextQueue[curIdx]?.revealCount || 0;
+    currentRevealCountRef.current = nextInitialReveals;
+    setCurrentRevealCount(nextInitialReveals);
+    cardStartTimeRef.current = Date.now();
     pan.setValue({ x: 0, y: 0 });
     dropAnim.setValue(0);
     // Fade-in thẻ đầu tiên khi load xong
